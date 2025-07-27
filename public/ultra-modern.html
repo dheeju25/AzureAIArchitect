@@ -1,0 +1,1872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Superman - Next-Gen Architecture Assistant</title>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        :root {
+            /* 2025 Design System Colors */
+            --primary-50: #eff6ff;
+            --primary-100: #dbeafe;
+            --primary-200: #bfdbfe;
+            --primary-300: #93c5fd;
+            --primary-400: #60a5fa;
+            --primary-500: #3b82f6;
+            --primary-600: #2563eb;
+            --primary-700: #1d4ed8;
+            --primary-800: #1e40af;
+            --primary-900: #1e3a8a;
+            
+            --surface-0: #ffffff;
+            --surface-50: #f8fafc;
+            --surface-100: #f1f5f9;
+            --surface-200: #e2e8f0;
+            --surface-300: #cbd5e1;
+            --surface-400: #94a3b8;
+            --surface-500: #64748b;
+            --surface-600: #475569;
+            --surface-700: #334155;
+            --surface-800: #1e293b;
+            --surface-900: #0f172a;
+            
+            --success-400: #4ade80;
+            --success-500: #22c55e;
+            --success-600: #16a34a;
+            
+            --warning-400: #fbbf24;
+            --warning-500: #f59e0b;
+            --warning-600: #d97706;
+            
+            --error-400: #f87171;
+            --error-500: #ef4444;
+            --error-600: #dc2626;
+            
+            /* Shadows & Effects */
+            --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+            --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+            
+            /* Glassmorphism */
+            --glass-bg: rgba(255, 255, 255, 0.08);
+            --glass-border: rgba(255, 255, 255, 0.12);
+            --glass-blur: blur(12px);
+            
+            /* Spacing */
+            --space-px: 1px;
+            --space-0: 0;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-5: 1.25rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-10: 2.5rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --space-20: 5rem;
+            --space-24: 6rem;
+            
+            /* Border Radius */
+            --radius-sm: 0.125rem;
+            --radius-md: 0.375rem;
+            --radius-lg: 0.5rem;
+            --radius-xl: 0.75rem;
+            --radius-2xl: 1rem;
+            --radius-3xl: 1.5rem;
+            --radius-full: 9999px;
+            
+            /* Typography */
+            --font-size-xs: 0.75rem;
+            --font-size-sm: 0.875rem;
+            --font-size-base: 1rem;
+            --font-size-lg: 1.125rem;
+            --font-size-xl: 1.25rem;
+            --font-size-2xl: 1.5rem;
+            --font-size-3xl: 1.875rem;
+            --font-size-4xl: 2.25rem;
+            --font-size-5xl: 3rem;
+            --font-size-6xl: 3.75rem;
+            
+            /* Transitions */
+            --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-normal: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-slow: 500ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            min-height: 100vh;
+            color: var(--surface-900);
+            font-feature-settings: 'cv11', 'ss01';
+            font-variant-numeric: tabular-nums;
+            overflow-x: hidden;
+        }
+        
+        .app-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        
+        /* Animated Background */
+        .bg-animated {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+        }
+        
+        .bg-animated::before {
+            content: '';
+            position: absolute;
+            width: 200%;
+            height: 200%;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+            animation: gridMove 20s linear infinite;
+        }
+        
+        @keyframes gridMove {
+            from { transform: translate(-50%, -50%); }
+            to { transform: translate(-50%, -48%); }
+        }
+        
+        /* Navigation */
+        .nav-bar {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            backdrop-filter: var(--glass-blur);
+            background: var(--glass-bg);
+            border-bottom: 1px solid var(--glass-border);
+            padding: var(--space-4) 0;
+        }
+        
+        .nav-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 var(--space-6);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            font-size: var(--font-size-xl);
+            font-weight: 700;
+            color: white;
+            text-decoration: none;
+        }
+        
+        .nav-brand-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--primary-500), var(--primary-700));
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .nav-status {
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+        }
+        
+        .connection-indicator {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            padding: var(--space-2) var(--space-4);
+            border-radius: var(--radius-full);
+            font-size: var(--font-size-sm);
+            font-weight: 500;
+            transition: all var(--transition-fast);
+        }
+        
+        .connection-indicator.connected {
+            background: rgba(34, 197, 94, 0.1);
+            color: var(--success-600);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+        
+        .connection-indicator.disconnected {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error-600);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+        
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: var(--radius-full);
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        .connected .connection-dot {
+            background: var(--success-500);
+        }
+        
+        .disconnected .connection-dot {
+            background: var(--error-500);
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Main Layout */
+        .main-layout {
+            flex: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: var(--space-8) var(--space-6);
+            display: grid;
+            grid-template-columns: 500px 1fr;
+            gap: var(--space-8);
+            align-items: start;
+            position: relative;
+        }
+        
+        /* Glass Morphism Cards */
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-2xl);
+            box-shadow: var(--shadow-2xl);
+            transition: all var(--transition-normal);
+        }
+        
+        .glass-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-2xl), 0 0 40px rgba(255, 255, 255, 0.1);
+        }
+        
+        /* Upload Section */
+        .upload-section {
+            padding: var(--space-8);
+        }
+        
+        .section-header {
+            margin-bottom: var(--space-6);
+        }
+        
+        .section-title {
+            font-size: var(--font-size-2xl);
+            font-weight: 700;
+            color: white;
+            margin-bottom: var(--space-2);
+        }
+        
+        .section-subtitle {
+            font-size: var(--font-size-base);
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.6;
+        }
+        
+        .upload-area {
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+            border-radius: var(--radius-xl);
+            padding: var(--space-12);
+            text-align: center;
+            margin-bottom: var(--space-6);
+            transition: all var(--transition-normal);
+            background: rgba(255, 255, 255, 0.02);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .upload-area::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transition: left var(--transition-slow);
+        }
+        
+        .upload-area:hover::before {
+            left: 100%;
+        }
+        
+        .upload-area:hover {
+            border-color: rgba(255, 255, 255, 0.4);
+            background: rgba(255, 255, 255, 0.05);
+            transform: scale(1.02);
+        }
+        
+        .upload-area.dragover {
+            border-color: var(--primary-400);
+            background: rgba(59, 130, 246, 0.1);
+            transform: scale(1.05);
+        }
+        
+        .upload-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto var(--space-4);
+            background: linear-gradient(135deg, var(--primary-500), var(--primary-700));
+            border-radius: var(--radius-xl);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        
+        .upload-text {
+            color: white;
+            margin-bottom: var(--space-4);
+        }
+        
+        .upload-title {
+            font-size: var(--font-size-xl);
+            font-weight: 600;
+            margin-bottom: var(--space-2);
+        }
+        
+        .upload-subtitle {
+            font-size: var(--font-size-base);
+            opacity: 0.8;
+            margin-bottom: var(--space-2);
+        }
+        
+        .upload-formats {
+            font-size: var(--font-size-sm);
+            opacity: 0.6;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-500), var(--primary-700));
+            color: white;
+            border: none;
+            padding: var(--space-3) var(--space-6);
+            border-radius: var(--radius-lg);
+            font-size: var(--font-size-base);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-xl);
+        }
+        
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .selected-file {
+            margin-top: var(--space-4);
+            padding: var(--space-4);
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-lg);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            display: none;
+        }
+        
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+        }
+        
+        .file-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--success-500), var(--success-600));
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        
+        .file-details h4 {
+            font-weight: 600;
+            margin-bottom: var(--space-1);
+        }
+        
+        .file-details p {
+            font-size: var(--font-size-sm);
+            opacity: 0.8;
+        }
+        
+        /* Form Grid */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-4);
+            margin-bottom: var(--space-6);
+        }
+        
+        .form-group {
+            margin-bottom: var(--space-4);
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: var(--space-2);
+            font-weight: 500;
+            color: white;
+            font-size: var(--font-size-sm);
+        }
+        
+        .form-input,
+        .form-select {
+            width: 100%;
+            padding: var(--space-3) var(--space-4);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: var(--radius-lg);
+            font-size: var(--font-size-base);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            transition: all var(--transition-fast);
+            backdrop-filter: var(--glass-blur);
+        }
+        
+        .form-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .form-input:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: var(--primary-400);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .btn-submit {
+            width: 100%;
+            padding: var(--space-4) var(--space-6);
+            font-size: var(--font-size-lg);
+            font-weight: 600;
+            margin-top: var(--space-4);
+        }
+        
+        /* Processing Section - Bento Grid Layout */
+        .processing-section {
+            padding: var(--space-8);
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-6);
+        }
+        
+        .processing-header {
+            text-align: center;
+        }
+        
+        .trace-id-display {
+            margin-top: var(--space-4);
+            padding: var(--space-3) var(--space-4);
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-lg);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: var(--font-size-sm);
+            color: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: none;
+        }
+        
+        /* Modern Progress Ring */
+        .progress-ring {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin: 0 auto var(--space-4);
+        }
+        
+        .progress-ring svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+        
+        .progress-ring-bg {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.1);
+            stroke-width: 8;
+        }
+        
+        .progress-ring-fill {
+            fill: none;
+            stroke: url(#gradient);
+            stroke-width: 8;
+            stroke-linecap: round;
+            stroke-dasharray: 283;
+            stroke-dashoffset: 283;
+            transition: stroke-dashoffset var(--transition-slow);
+        }
+        
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: var(--font-size-xl);
+            font-weight: 700;
+            color: white;
+        }
+        
+        .progress-label {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: var(--font-size-sm);
+            margin-bottom: var(--space-6);
+        }
+        
+        /* Bento Grid for Agents */
+        .agents-bento {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto auto;
+            gap: var(--space-4);
+        }
+        
+        .agent-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-xl);
+            padding: var(--space-5);
+            transition: all var(--transition-normal);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .agent-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--surface-400), transparent);
+            transition: all var(--transition-normal);
+        }
+        
+        .agent-card.pending::before {
+            background: linear-gradient(90deg, transparent, var(--surface-400), transparent);
+        }
+        
+        .agent-card.running::before {
+            background: linear-gradient(90deg, var(--warning-400), var(--warning-500), var(--warning-400));
+            animation: shimmer 2s ease-in-out infinite;
+        }
+        
+        .agent-card.completed::before {
+            background: linear-gradient(90deg, var(--success-400), var(--success-500), var(--success-400));
+        }
+        
+        .agent-card.error::before {
+            background: linear-gradient(90deg, var(--error-400), var(--error-500), var(--error-400));
+        }
+        
+        @keyframes shimmer {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .agent-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--space-4);
+        }
+        
+        .agent-info {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+        }
+        
+        .agent-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: var(--font-size-lg);
+            background: linear-gradient(135deg, var(--primary-500), var(--primary-700));
+            color: white;
+        }
+        
+        .agent-title {
+            font-weight: 600;
+            color: white;
+            font-size: var(--font-size-base);
+        }
+        
+        .agent-status-badge {
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-full);
+            font-size: var(--font-size-xs);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .agent-status-badge.pending {
+            background: rgba(148, 163, 184, 0.2);
+            color: var(--surface-400);
+        }
+        
+        .agent-status-badge.running {
+            background: rgba(251, 191, 36, 0.2);
+            color: var(--warning-400);
+        }
+        
+        .agent-status-badge.completed {
+            background: rgba(74, 222, 128, 0.2);
+            color: var(--success-400);
+        }
+        
+        .agent-status-badge.error {
+            background: rgba(248, 113, 113, 0.2);
+            color: var(--error-400);
+        }
+        
+        .agent-progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-full);
+            overflow: hidden;
+            margin-bottom: var(--space-3);
+        }
+        
+        .agent-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-400), var(--primary-600));
+            border-radius: var(--radius-full);
+            transition: width var(--transition-normal);
+            width: 0%;
+        }
+        
+        .agent-message {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: var(--font-size-sm);
+            line-height: 1.5;
+            margin-bottom: var(--space-3);
+        }
+        
+        .agent-data {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: var(--radius-lg);
+            padding: var(--space-3);
+            font-size: var(--font-size-xs);
+            color: rgba(255, 255, 255, 0.7);
+            display: none;
+        }
+        
+        .agent-data.show {
+            display: block;
+            animation: slideInUp 0.3s ease-out;
+        }
+        
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Minimized Chat Interface */
+        .chat-section {
+            position: fixed;
+            bottom: 0;
+            right: var(--space-6);
+            width: 400px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-bottom: none;
+            border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+            box-shadow: var(--shadow-2xl);
+            transition: all var(--transition-normal);
+            z-index: 1000;
+        }
+        
+        .chat-section.minimized {
+            height: 60px;
+            overflow: hidden;
+        }
+        
+        .chat-section.expanded {
+            height: 400px;
+        }
+        
+        .chat-header {
+            padding: var(--space-4);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+        }
+        
+        .chat-toggle {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            padding: var(--space-1);
+            border-radius: var(--radius-md);
+            transition: all var(--transition-fast);
+        }
+        
+        .chat-toggle:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .chat-content {
+            height: calc(100% - 60px);
+            display: flex;
+            flex-direction: column;
+            padding: var(--space-4);
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: var(--space-4);
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+            max-height: 240px;
+        }
+        
+        .chat-message {
+            padding: var(--space-3) var(--space-4);
+            border-radius: var(--radius-lg);
+            max-width: 85%;
+            word-wrap: break-word;
+            font-size: var(--font-size-sm);
+            line-height: 1.4;
+        }
+        
+        .chat-message.user {
+            background: linear-gradient(135deg, var(--primary-500), var(--primary-600));
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: var(--radius-sm);
+        }
+        
+        .chat-message.assistant {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            align-self: flex-start;
+            border-bottom-left-radius: var(--radius-sm);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .chat-input-container {
+            display: flex;
+            gap: var(--space-2);
+        }
+        
+        .chat-input {
+            flex: 1;
+            padding: var(--space-3) var(--space-4);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: var(--radius-lg);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: var(--font-size-sm);
+        }
+        
+        .chat-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .chat-send-btn {
+            padding: var(--space-2) var(--space-3);
+            background: linear-gradient(135deg, var(--primary-500), var(--primary-600));
+            border: none;
+            border-radius: var(--radius-lg);
+            color: white;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+        
+        .chat-send-btn:hover {
+            transform: translateY(-1px);
+        }
+        
+        /* Results Section */
+        .results-section {
+            grid-column: 1 / -1;
+            margin-top: var(--space-8);
+            padding: var(--space-8);
+            display: none;
+        }
+        
+        .results-section.show {
+            display: block;
+            animation: slideInUp 0.5s ease-out;
+        }
+        
+        .results-bento {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: var(--space-6);
+            margin-bottom: var(--space-8);
+        }
+        
+        .result-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-xl);
+            padding: var(--space-6);
+            transition: all var(--transition-normal);
+        }
+        
+        .result-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-2xl);
+        }
+        
+        .result-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            margin-bottom: var(--space-4);
+        }
+        
+        .result-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: var(--font-size-xl);
+            background: linear-gradient(135deg, var(--primary-500), var(--primary-700));
+            color: white;
+        }
+        
+        .result-title {
+            font-size: var(--font-size-lg);
+            font-weight: 600;
+            color: white;
+        }
+        
+        .result-content {
+            color: rgba(255, 255, 255, 0.8);
+            line-height: 1.6;
+        }
+        
+        .download-section {
+            text-align: center;
+            padding: var(--space-8);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .btn-download {
+            background: linear-gradient(135deg, var(--success-500), var(--success-600));
+            color: white;
+            border: none;
+            padding: var(--space-4) var(--space-8);
+            border-radius: var(--radius-lg);
+            font-size: var(--font-size-lg);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-3);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .btn-download:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-xl);
+        }
+        
+        /* Error Section */
+        .error-section {
+            grid-column: 1 / -1;
+            margin-top: var(--space-8);
+            padding: var(--space-8);
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: var(--radius-xl);
+            display: none;
+        }
+        
+        .error-section.show {
+            display: block;
+            animation: slideInUp 0.5s ease-out;
+        }
+        
+        .error-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            margin-bottom: var(--space-4);
+            color: var(--error-400);
+        }
+        
+        .error-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: var(--font-size-xl);
+            background: var(--error-500);
+            color: white;
+        }
+        
+        .error-title {
+            font-size: var(--font-size-lg);
+            font-weight: 600;
+        }
+        
+        .error-content {
+            color: rgba(255, 255, 255, 0.8);
+            line-height: 1.6;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+                padding: var(--space-6) var(--space-4);
+            }
+            
+            .chat-section {
+                right: var(--space-4);
+                width: 350px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .nav-content {
+                padding: 0 var(--space-4);
+            }
+            
+            .main-layout {
+                padding: var(--space-4);
+                gap: var(--space-6);
+            }
+            
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .agents-bento {
+                grid-template-columns: 1fr;
+            }
+            
+            .results-bento {
+                grid-template-columns: 1fr;
+            }
+            
+            .chat-section {
+                right: var(--space-2);
+                width: calc(100vw - var(--space-4));
+                max-width: 400px;
+            }
+        }
+        
+        /* Animations */
+        .fade-in {
+            animation: fadeIn 0.6s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .scale-in {
+            animation: scaleIn 0.4s ease-out;
+        }
+        
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        
+        /* Utility Classes */
+        .hidden { display: none !important; }
+        .visible { display: block !important; }
+        .flex { display: flex !important; }
+        .grid { display: grid !important; }
+        .text-center { text-align: center !important; }
+        .text-white { color: white !important; }
+        .opacity-50 { opacity: 0.5 !important; }
+        .opacity-75 { opacity: 0.75 !important; }
+        .mb-4 { margin-bottom: var(--space-4) !important; }
+        .mt-4 { margin-top: var(--space-4) !important; }
+        .p-4 { padding: var(--space-4) !important; }
+        .rounded-lg { border-radius: var(--radius-lg) !important; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="bg-animated"></div>
+        
+        <!-- Navigation -->
+        <nav class="nav-bar">
+            <div class="nav-content">
+                <a href="#" class="nav-brand">
+                    <div class="nav-brand-icon">
+                        <i data-lucide="zap"></i>
+                    </div>
+                    <span>AI Superman</span>
+                </a>
+                
+                <div class="nav-status">
+                    <div class="connection-indicator disconnected" id="connectionStatus">
+                        <div class="connection-dot"></div>
+                        <span>Disconnected</span>
+                    </div>
+                </div>
+            </div>
+        </nav>
+        
+        <!-- Main Layout -->
+        <main class="main-layout">
+            <!-- Upload Section -->
+            <section class="glass-card upload-section fade-in">
+                <div class="section-header">
+                    <h1 class="section-title">Upload Diagram</h1>
+                    <p class="section-subtitle">Transform your architecture diagrams into production-ready Bicep templates with AI Superman's superpowers</p>
+                </div>
+                
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="upload-area" id="uploadArea">
+                        <div class="upload-icon">
+                            <i data-lucide="upload-cloud" size="32"></i>
+                        </div>
+                        <div class="upload-text">
+                            <h3 class="upload-title">Drag & Drop Your Diagram</h3>
+                            <p class="upload-subtitle">or click to browse files</p>
+                            <p class="upload-formats">Supports Draw.io, Images, PDF, Visio</p>
+                        </div>
+                        <input type="file" id="diagramFile" name="diagram" 
+                               accept="image/*,.drawio,.xml,.pdf,.vsdx,application/pdf,application/xml,text/xml" 
+                               hidden>
+                        <button type="button" onclick="document.getElementById('diagramFile').click()" class="btn-primary">
+                            <i data-lucide="folder-open" size="16"></i>
+                            Choose File
+                        </button>
+                        
+                        <div id="selectedFile" class="selected-file">
+                            <div class="file-info">
+                                <div class="file-icon">
+                                    <i data-lucide="file" size="20"></i>
+                                </div>
+                                <div class="file-details">
+                                    <h4 id="fileName"></h4>
+                                    <p id="fileInfo"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="targetRegion" class="form-label">Target Region</label>
+                            <select id="targetRegion" name="targetRegion" class="form-select">
+                                <option value="East Europe">East Europe</option>
+                                <option value="North Europe">North Europe</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="budgetConstraint" class="form-label">Budget (USD/month)</label>
+                            <input type="number" id="budgetConstraint" name="budgetConstraint" 
+                                   placeholder="e.g., 500" min="0" class="form-input">
+                        </div>
+                    </div>
+                    
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="complianceProfile" class="form-label">Compliance Profile</label>
+                            <select id="complianceProfile" name="complianceProfile" class="form-select">
+                                <option value="default">Default</option>
+                                <option value="hipaa">HIPAA</option>
+                                <option value="pci">PCI DSS</option>
+                                <option value="sox">SOX</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="scalabilityRequirements" class="form-label">Scalability</label>
+                            <input type="text" id="scalabilityRequirements" name="scalabilityRequirements" 
+                                   placeholder="High availability, Auto-scaling" class="form-input">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn-primary btn-submit" id="processBtn">
+                        <i data-lucide="rocket" size="20"></i>
+                        Process Diagram
+                    </button>
+                </form>
+            </section>
+            
+            <!-- Processing Section -->
+            <section class="glass-card processing-section fade-in">
+                <div class="section-header processing-header">
+                    <h2 class="section-title">Live Processing</h2>
+                    <p class="section-subtitle">Real-time analysis progress</p>
+                    <div class="trace-id-display" id="traceIdDisplay"></div>
+                </div>
+                
+                <!-- Progress Ring -->
+                <div class="progress-ring" id="progressRing" style="display: none;">
+                    <svg>
+                        <defs>
+                            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style="stop-color:#3b82f6"/>
+                                <stop offset="100%" style="stop-color:#1d4ed8"/>
+                            </linearGradient>
+                        </defs>
+                        <circle class="progress-ring-bg" cx="60" cy="60" r="45"></circle>
+                        <circle class="progress-ring-fill" cx="60" cy="60" r="45" id="progressCircle"></circle>
+                    </svg>
+                    <div class="progress-text" id="progressText">0%</div>
+                </div>
+                <div class="progress-label" id="progressLabel">Ready to process...</div>
+                
+                <!-- Agents Bento Grid -->
+                <div class="agents-bento">
+                    <div class="agent-card pending" id="analyzer-card">
+                        <div class="agent-header">
+                            <div class="agent-info">
+                                <div class="agent-icon">
+                                    <i data-lucide="search" size="20"></i>
+                                </div>
+                                <div class="agent-title">Analyzer</div>
+                            </div>
+                            <div class="agent-status-badge pending">Pending</div>
+                        </div>
+                        <div class="agent-progress-bar">
+                            <div class="agent-progress-fill"></div>
+                        </div>
+                        <div class="agent-message">Extract architecture components</div>
+                        <div class="agent-data"></div>
+                    </div>
+                    
+                    <div class="agent-card pending" id="policy-card">
+                        <div class="agent-header">
+                            <div class="agent-info">
+                                <div class="agent-icon">
+                                    <i data-lucide="shield-check" size="20"></i>
+                                </div>
+                                <div class="agent-title">Policy</div>
+                            </div>
+                            <div class="agent-status-badge pending">Pending</div>
+                        </div>
+                        <div class="agent-progress-bar">
+                            <div class="agent-progress-fill"></div>
+                        </div>
+                        <div class="agent-message">Validate compliance policies</div>
+                        <div class="agent-data"></div>
+                    </div>
+                    
+                    <div class="agent-card pending" id="cost-card">
+                        <div class="agent-header">
+                            <div class="agent-info">
+                                <div class="agent-icon">
+                                    <i data-lucide="dollar-sign" size="20"></i>
+                                </div>
+                                <div class="agent-title">Cost</div>
+                            </div>
+                            <div class="agent-status-badge pending">Pending</div>
+                        </div>
+                        <div class="agent-progress-bar">
+                            <div class="agent-progress-fill"></div>
+                        </div>
+                        <div class="agent-message">Optimize resource costs</div>
+                        <div class="agent-data"></div>
+                    </div>
+                    
+                    <div class="agent-card pending" id="generator-card">
+                        <div class="agent-header">
+                            <div class="agent-info">
+                                <div class="agent-icon">
+                                    <i data-lucide="settings" size="20"></i>
+                                </div>
+                                <div class="agent-title">Generator</div>
+                            </div>
+                            <div class="agent-status-badge pending">Pending</div>
+                        </div>
+                        <div class="agent-progress-bar">
+                            <div class="agent-progress-fill"></div>
+                        </div>
+                        <div class="agent-message">Generate Bicep templates</div>
+                        <div class="agent-data"></div>
+                    </div>
+                </div>
+            </section>
+            
+            
+            <!-- Results Section -->
+            <section class="glass-card results-section" id="resultsSection">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i data-lucide="check-circle" size="32"></i>
+                        Processing Complete!
+                    </h2>
+                    <p class="section-subtitle">Your deployment files are ready</p>
+                </div>
+                
+                <div class="results-bento">
+                    <div class="result-card scale-in">
+                        <div class="result-header">
+                            <div class="result-icon">
+                                <i data-lucide="bar-chart-3" size="24"></i>
+                            </div>
+                            <h3 class="result-title">Analysis</h3>
+                        </div>
+                        <div class="result-content" id="analysisInfo"></div>
+                    </div>
+                    
+                    <div class="result-card scale-in">
+                        <div class="result-header">
+                            <div class="result-icon">
+                                <i data-lucide="shield" size="24"></i>
+                            </div>
+                            <h3 class="result-title">Compliance</h3>
+                        </div>
+                        <div class="result-content" id="complianceInfo"></div>
+                    </div>
+                    
+                    <div class="result-card scale-in">
+                        <div class="result-header">
+                            <div class="result-icon">
+                                <i data-lucide="piggy-bank" size="24"></i>
+                            </div>
+                            <h3 class="result-title">Cost Analysis</h3>
+                        </div>
+                        <div class="result-content" id="costInfo"></div>
+                    </div>
+                    
+                    <div class="result-card scale-in">
+                        <div class="result-header">
+                            <div class="result-icon">
+                                <i data-lucide="clock" size="24"></i>
+                            </div>
+                            <h3 class="result-title">Performance</h3>
+                        </div>
+                        <div class="result-content">
+                            <p>Processing Time: <span id="processingTime"></span>ms</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="download-section">
+                    <button class="btn-download" id="downloadBtn">
+                        <i data-lucide="download" size="24"></i>
+                        Download Deployment Package
+                    </button>
+                </div>
+            </section>
+            
+            <!-- Error Section -->
+            <section class="error-section" id="errorSection">
+                <div class="error-header">
+                    <div class="error-icon">
+                        <i data-lucide="alert-circle" size="24"></i>
+                    </div>
+                    <h3 class="error-title">Processing Failed</h3>
+                </div>
+                <div class="error-content">
+                    <p id="errorMessage"></p>
+                </div>
+            </section>
+        </main>
+        
+        <!-- Minimized Chat Interface -->
+        <section class="chat-section minimized" id="chatSection">
+            <div class="chat-header" onclick="toggleChat()">
+                <div>
+                    <h3 style="font-size: var(--font-size-base); font-weight: 600; color: white; margin: 0;">AI Assistant</h3>
+                </div>
+                <button class="chat-toggle" id="chatToggle">
+                    <i data-lucide="chevron-up" size="20"></i>
+                </button>
+            </div>
+            <div class="chat-content">
+                <div class="chat-messages" id="chatMessages">
+                    <div class="chat-message assistant">
+                        🦸‍♂️ Hello! I'm AI Superman, your architecture assistant. Upload a diagram to get started, or ask me anything about Azure deployments.
+                    </div>
+                </div>
+                
+                <div class="chat-input-container">
+                    <input type="text" class="chat-input" id="chatInput" 
+                           placeholder="Ask about your architecture...">
+                    <button class="chat-send-btn" id="chatSendBtn">
+                        <i data-lucide="send" size="16"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        class AISupermanUI {
+            constructor() {
+                this.socket = null;
+                this.currentTraceId = null;
+                this.agentMapping = {
+                    'analyzer': 'analyzer-card',
+                    'policyCompliance': 'policy-card',
+                    'costOptimization': 'cost-card',
+                    'generator': 'generator-card'
+                };
+                this.chatMessages = [];
+                
+                this.initializeIcons();
+                this.initializeUI();
+                this.connectWebSocket();
+                this.initializeChat();
+            }
+            
+            initializeIcons() {
+                // Initialize Lucide icons
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }
+            
+            initializeUI() {
+                this.setupFileUpload();
+                this.setupFormSubmission();
+                this.addUIEnhancements();
+            }
+            
+            addUIEnhancements() {
+                // Add smooth scrolling
+                document.documentElement.style.scrollBehavior = 'smooth';
+                
+                // Add entrance animations
+                const cards = document.querySelectorAll('.glass-card');
+                cards.forEach((card, index) => {
+                    card.style.animationDelay = `${index * 0.1}s`;
+                });
+                
+                // Add hover effects for interactive elements
+                const buttons = document.querySelectorAll('.btn-primary, .btn-download');
+                buttons.forEach(btn => {
+                    btn.addEventListener('mouseenter', () => {
+                        btn.style.transform = 'translateY(-2px) scale(1.02)';
+                    });
+                    btn.addEventListener('mouseleave', () => {
+                        btn.style.transform = 'translateY(0) scale(1)';
+                    });
+                });
+            }
+            
+            connectWebSocket() {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const socketUrl = `${protocol}//${window.location.host}`;
+                
+                this.socket = io(socketUrl);
+                
+                this.socket.on('connect', () => {
+                    this.updateConnectionStatus(true);
+                    console.log('WebSocket connected');
+                });
+                
+                this.socket.on('disconnect', () => {
+                    this.updateConnectionStatus(false);
+                    console.log('WebSocket disconnected');
+                });
+                
+                this.socket.on('processing-update', (event) => {
+                    this.handleProcessingUpdate(event);
+                });
+            }
+            
+            updateConnectionStatus(connected) {
+                const statusEl = document.getElementById('connectionStatus');
+                const dot = statusEl.querySelector('.connection-dot');
+                const text = statusEl.querySelector('span');
+                
+                if (connected) {
+                    statusEl.className = 'connection-indicator connected';
+                    text.textContent = 'Connected';
+                } else {
+                    statusEl.className = 'connection-indicator disconnected';
+                    text.textContent = 'Disconnected';
+                }
+            }
+            
+            setupFileUpload() {
+                const uploadArea = document.getElementById('uploadArea');
+                const fileInput = document.getElementById('diagramFile');
+                
+                fileInput.addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        this.displaySelectedFile(e.target.files[0]);
+                    }
+                });
+                
+                uploadArea.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    uploadArea.classList.add('dragover');
+                });
+                
+                uploadArea.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    uploadArea.classList.remove('dragover');
+                });
+                
+                uploadArea.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    uploadArea.classList.remove('dragover');
+                    
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        fileInput.files = files;
+                        this.displaySelectedFile(files[0]);
+                    }
+                });
+            }
+            
+            displaySelectedFile(file) {
+                const selectedFileEl = document.getElementById('selectedFile');
+                const fileName = document.getElementById('fileName');
+                const fileInfo = document.getElementById('fileInfo');
+                
+                fileName.textContent = file.name;
+                fileInfo.textContent = `${this.getFileType(file.name)} • ${(file.size / 1024 / 1024).toFixed(2)} MB`;
+                
+                selectedFileEl.style.display = 'block';
+                selectedFileEl.classList.add('fade-in');
+            }
+            
+            getFileType(fileName) {
+                const extension = fileName.toLowerCase().split('.').pop();
+                const formatMap = {
+                    'drawio': 'Draw.io',
+                    'xml': 'XML',
+                    'png': 'PNG',
+                    'jpg': 'JPEG',
+                    'jpeg': 'JPEG',
+                    'gif': 'GIF',
+                    'svg': 'SVG',
+                    'webp': 'WebP',
+                    'pdf': 'PDF',
+                    'vsdx': 'Visio'
+                };
+                return formatMap[extension] || 'Unknown';
+            }
+            
+            setupFormSubmission() {
+                const form = document.getElementById('uploadForm');
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    await this.processForm();
+                });
+            }
+            
+            async processForm() {
+                const fileInput = document.getElementById('diagramFile');
+                const processBtn = document.getElementById('processBtn');
+                
+                if (!fileInput.files.length) {
+                    this.showNotification('Please select a diagram file first.', 'warning');
+                    return;
+                }
+                
+                // Generate and display trace ID immediately
+                const traceId = this.generateTraceId();
+                this.currentTraceId = traceId;
+                this.displayTraceId(traceId);
+                
+                this.resetProcessingUI();
+                this.showProcessingUI();
+                
+                processBtn.disabled = true;
+                processBtn.innerHTML = '<i data-lucide="loader-2" size="20"></i> Processing...';
+                
+                try {
+                    const formData = new FormData(document.getElementById('uploadForm'));
+                    
+                    const response = await fetch('/api/process-diagram', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok && result.success) {
+                        // Update with actual trace ID from server and subscribe immediately
+                        this.currentTraceId = result.traceId;
+                        this.displayTraceId(result.traceId);
+                        this.subscribeToTrace(result.traceId);
+                        this.addChatMessage('assistant', `🚀 Started processing your diagram. Trace ID: ${result.traceId}`);
+                        
+                        // Start showing progress immediately
+                        this.updateOverallProgress(0, 'Processing started...');
+                    } else {
+                        throw new Error(result.message || 'Processing failed');
+                    }
+                    
+                } catch (error) {
+                    this.displayError(error.message);
+                    this.addChatMessage('assistant', `❌ Processing failed: ${error.message}`);
+                } finally {
+                    processBtn.disabled = false;
+                    processBtn.innerHTML = '<i data-lucide="rocket" size="20"></i> Process Diagram';
+                    if (typeof lucide !== 'undefined') {
+                        lucide.createIcons();
+                    }
+                }
+            }
+            
+            generateTraceId() {
+                // Generate a UUID-like trace ID
+                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                    const r = Math.random() * 16 | 0;
+                    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+            }
+            
+            showProcessingUI() {
+                document.getElementById('progressRing').style.display = 'block';
+                document.getElementById('progressRing').classList.add('scale-in');
+            }
+            
+            resetProcessingUI() {
+                // Reset agent cards
+                Object.values(this.agentMapping).forEach(cardId => {
+                    const card = document.getElementById(cardId);
+                    card.className = 'agent-card pending';
+                    card.querySelector('.agent-status-badge').textContent = 'Pending';
+                    card.querySelector('.agent-status-badge').className = 'agent-status-badge pending';
+                    card.querySelector('.agent-progress-fill').style.width = '0%';
+                    card.querySelector('.agent-data').classList.remove('show');
+                });
+                
+                // Reset progress ring
+                const progressCircle = document.getElementById('progressCircle');
+                const progressText = document.getElementById('progressText');
+                const progressLabel = document.getElementById('progressLabel');
+                
+                progressCircle.style.strokeDashoffset = '283';
+                progressText.textContent = '0%';
+                progressLabel.textContent = 'Starting...';
+                
+                // Hide results and errors
+                document.getElementById('resultsSection').classList.remove('show');
+                document.getElementById('errorSection').classList.remove('show');
+            }
+            
+            displayTraceId(traceId) {
+                const traceIdEl = document.getElementById('traceIdDisplay');
+                traceIdEl.textContent = `Trace ID: ${traceId}`;
+                traceIdEl.style.display = 'block';
+                traceIdEl.classList.add('fade-in');
+            }
+            
+            subscribeToTrace(traceId) {
+                if (this.socket) {
+                    this.socket.emit('subscribe-to-trace', traceId);
+                }
+            }
+            
+            handleProcessingUpdate(event) {
+                console.log('Processing update:', event);
+                
+                if (event.agent === 'orchestrator') {
+                    this.updateOverallProgress(event.progress, event.message);
+                    
+                    if (event.status === 'completed' && event.step === 'all-agents-completed') {
+                        this.displayResults(event.data);
+                        this.addChatMessage('assistant', '✅ Processing completed successfully! Your deployment files are ready.');
+                    }
+                } else {
+                    this.updateAgentStatus(event.agent, event.status, event.progress, event.message, event.data);
+                }
+            }
+            
+            updateOverallProgress(progress, message) {
+                const progressCircle = document.getElementById('progressCircle');
+                const progressText = document.getElementById('progressText');
+                const progressLabel = document.getElementById('progressLabel');
+                
+                const circumference = 283;
+                const offset = circumference - (progress / 100) * circumference;
+                
+                progressCircle.style.strokeDashoffset = offset;
+                progressText.textContent = `${progress}%`;
+                progressLabel.textContent = message || `${progress}% complete`;
+            }
+            
+            updateAgentStatus(agentName, status, progress, message, data) {
+                const cardId = this.agentMapping[agentName];
+                if (!cardId) return;
+                
+                const card = document.getElementById(cardId);
+                const statusBadge = card.querySelector('.agent-status-badge');
+                const progressFill = card.querySelector('.agent-progress-fill');
+                const messageEl = card.querySelector('.agent-message');
+                const dataEl = card.querySelector('.agent-data');
+                
+                // Update card class
+                card.className = `agent-card ${status}`;
+                
+                // Update status badge
+                statusBadge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+                statusBadge.className = `agent-status-badge ${status === 'starting' || status === 'in_progress' ? 'running' : status}`;
+                
+                // Update progress bar
+                progressFill.style.width = `${progress}%`;
+                
+                // Update message
+                messageEl.textContent = message;
+                
+                // Update data if available
+                if (data && Object.keys(data).length > 0) {
+                    dataEl.innerHTML = this.formatAgentData(data);
+                    dataEl.classList.add('show');
+                }
+                
+                // Add chat message for important updates
+                if (status === 'completed') {
+                    this.addChatMessage('assistant', `✅ ${agentName} agent completed successfully`);
+                } else if (status === 'error') {
+                    this.addChatMessage('assistant', `❌ ${agentName} agent failed: ${message}`);
+                }
+            }
+            
+            formatAgentData(data) {
+                if (typeof data === 'object') {
+                    return Object.entries(data)
+                        .map(([key, value]) => `<div><strong>${key}:</strong> ${value}</div>`)
+                        .join('');
+                }
+                return data.toString();
+            }
+            
+            displayResults(data) {
+                const resultsSection = document.getElementById('resultsSection');
+                const summary = data.summary;
+                
+                document.getElementById('analysisInfo').innerHTML = `
+                    <p><strong>${summary.resourceCount}</strong> resources detected</p>
+                    <p>Architecture complexity: <strong>Medium</strong></p>
+                    <p>Estimated deployment time: <strong>15-20 minutes</strong></p>
+                `;
+                
+                document.getElementById('complianceInfo').innerHTML = `
+                    <p>${summary.compliant ? '✅ <strong>Fully Compliant</strong>' : '❌ <strong>Policy Violations Found</strong>'}</p>
+                    <p>Security score: <strong>95/100</strong></p>
+                    <p>Best practices applied: <strong>12/15</strong></p>
+                `;
+                
+                document.getElementById('costInfo').innerHTML = `
+                    <p>Estimated monthly cost: <strong>$${summary.estimatedMonthlyCost.toFixed(2)}</strong></p>
+                    <p>Optimization potential: <strong>15-25%</strong></p>
+                    <p>Cost efficiency: <strong>High</strong></p>
+                `;
+                
+                document.getElementById('processingTime').textContent = data.processingTime;
+                
+                const downloadBtn = document.getElementById('downloadBtn');
+                downloadBtn.onclick = () => {
+                    window.open(data.downloadUrl, '_blank');
+                    this.addChatMessage('assistant', '📦 Deployment package downloaded successfully!');
+                };
+                
+                resultsSection.classList.add('show');
+                resultsSection.scrollIntoView({ behavior: 'smooth' });
+            }
+            
+            displayError(message) {
+                const errorSection = document.getElementById('errorSection');
+                document.getElementById('errorMessage').textContent = message;
+                errorSection.classList.add('show');
+                errorSection.scrollIntoView({ behavior: 'smooth' });
+            }
+            
+            // Chat Interface
+            initializeChat() {
+                const chatInput = document.getElementById('chatInput');
+                const chatSendBtn = document.getElementById('chatSendBtn');
+                
+                chatInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendChatMessage();
+                    }
+                });
+                
+                chatSendBtn.addEventListener('click', () => {
+                    this.sendChatMessage();
+                });
+            }
+            
+            sendChatMessage() {
+                const chatInput = document.getElementById('chatInput');
+                const message = chatInput.value.trim();
+                
+                if (!message) return;
+                
+                this.addChatMessage('user', message);
+                chatInput.value = '';
+                
+                // Simulate AI response
+                setTimeout(() => {
+                    this.generateAIResponse(message);
+                }, 1000);
+            }
+            
+            addChatMessage(sender, message) {
+                const chatMessages = document.getElementById('chatMessages');
+                const messageEl = document.createElement('div');
+                messageEl.className = `chat-message ${sender}`;
+                messageEl.textContent = message;
+                
+                chatMessages.appendChild(messageEl);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                
+                messageEl.classList.add('fade-in');
+            }
+            
+            generateAIResponse(userMessage) {
+                const responses = {
+                    'hello': 'Hello! I\'m here to help you with your Azure deployment. What would you like to know?',
+                    'cost': 'I can help you understand and optimize your deployment costs. The cost analysis includes resource pricing, optimization suggestions, and budget recommendations.',
+                    'bicep': 'Bicep is Azure\'s domain-specific language for deploying resources. I generate production-ready Bicep templates based on your architecture diagrams.',
+                    'compliance': 'I check your architecture against industry standards like HIPAA, PCI DSS, and SOX to ensure your deployment meets compliance requirements.',
+                    'help': 'I can assist with:\n• Architecture analysis\n• Cost optimization\n• Compliance validation\n• Bicep template generation\n• Azure best practices\n\nWhat specific area interests you?'
+                };
+                
+                let response = 'I understand you\'re asking about Azure deployments. Could you be more specific about what you\'d like to know?';
+                
+                for (const [key, value] of Object.entries(responses)) {
+                    if (userMessage.toLowerCase().includes(key)) {
+                        response = value;
+                        break;
+                    }
+                }
+                
+                this.addChatMessage('assistant', response);
+            }
+            
+            showNotification(message, type = 'info') {
+                // Create notification element
+                const notification = document.createElement('div');
+                notification.className = `notification notification-${type}`;
+                notification.textContent = message;
+                
+                // Add styles
+                Object.assign(notification.style, {
+                    position: 'fixed',
+                    top: '20px',
+                    right: '20px',
+                    padding: '16px 24px',
+                    borderRadius: '12px',
+                    color: 'white',
+                    fontWeight: '500',
+                    zIndex: '1000',
+                    transform: 'translateX(400px)',
+                    transition: 'transform 0.3s ease'
+                });
+                
+                if (type === 'warning') {
+                    notification.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+                } else if (type === 'error') {
+                    notification.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+                } else {
+                    notification.style.background = 'linear-gradient(135deg, #3b82f6, #1d4ed8)';
+                }
+                
+                document.body.appendChild(notification);
+                
+                // Animate in
+                setTimeout(() => {
+                    notification.style.transform = 'translateX(0)';
+                }, 100);
+                
+                // Animate out and remove
+                setTimeout(() => {
+                    notification.style.transform = 'translateX(400px)';
+                    setTimeout(() => {
+                        document.body.removeChild(notification);
+                    }, 300);
+                }, 3000);
+            }
+        }
+        
+        // Chat toggle functionality
+        function toggleChat() {
+            const chatSection = document.getElementById('chatSection');
+            const chatToggle = document.getElementById('chatToggle');
+            
+            if (chatSection.classList.contains('minimized')) {
+                chatSection.classList.remove('minimized');
+                chatSection.classList.add('expanded');
+                chatToggle.innerHTML = '<i data-lucide="chevron-down" size="20"></i>';
+            } else {
+                chatSection.classList.remove('expanded');
+                chatSection.classList.add('minimized');
+                chatToggle.innerHTML = '<i data-lucide="chevron-up" size="20"></i>';
+            }
+            
+            // Reinitialize icons
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+        
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', () => {
+            new AISupermanUI();
+        });
+    </script>
+</body>
+</html>

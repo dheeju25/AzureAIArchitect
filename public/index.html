@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Superman - Architecture Assistant</title>
+    <script>
+        // Redirect to ultra-modern UI with cache busting
+        window.location.href = '/ultra-modern.html?v=' + Date.now();
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .upload-section {
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            transition: border-color 0.3s ease;
+        }
+        
+        .upload-section:hover {
+            border-color: #007bff;
+        }
+        
+        .upload-section.dragover {
+            border-color: #007bff;
+            background: #e3f2fd;
+        }
+        
+        .upload-icon {
+            font-size: 4em;
+            color: #6c757d;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        
+        .btn:hover {
+            background: #0056b3;
+        }
+        
+        .btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 30px 0;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .results {
+            display: none;
+            margin-top: 30px;
+            padding: 25px;
+            background: #e8f5e8;
+            border-radius: 8px;
+            border-left: 5px solid #28a745;
+        }
+        
+        .results h3 {
+            color: #155724;
+            margin-bottom: 20px;
+        }
+        
+        .result-item {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 5px;
+            border: 1px solid #d4edda;
+        }
+        
+        .result-item h4 {
+            color: #155724;
+            margin-bottom: 8px;
+        }
+        
+        .error {
+            display: none;
+            margin-top: 30px;
+            padding: 25px;
+            background: #f8d7da;
+            border-radius: 8px;
+            border-left: 5px solid #dc3545;
+            color: #721c24;
+        }
+        
+        .trace-id {
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+        
+        .download-btn {
+            background: #28a745;
+            margin-top: 20px;
+        }
+        
+        .download-btn:hover {
+            background: #1e7e34;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Azure AI Foundry Agents</h1>
+            <p>Convert Architecture Diagrams to Bicep Files and Azure Pipelines</p>
+        </div>
+        
+        <div class="content">
+            <form id="uploadForm" enctype="multipart/form-data">
+                <div class="upload-section" id="uploadSection">
+                    <div class="upload-icon">📁</div>
+                    <h3>Upload Architecture Diagram</h3>
+                    <p>Drag and drop your diagram here or click to browse</p>
+                    <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
+                        <strong>Supported formats:</strong> Draw.io (.drawio, .xml), Images (PNG, JPG, SVG, WebP), PDF, Visio (.vsdx)
+                    </p>
+                    <input type="file" id="diagramFile" name="diagram" 
+                           accept="image/*,.drawio,.xml,.pdf,.vsdx,application/pdf,application/xml,text/xml" 
+                           style="display: none;">
+                    <button type="button" onclick="document.getElementById('diagramFile').click()" class="btn" style="margin-top: 20px;">
+                        Choose File
+                    </button>
+                    <div id="selectedFile" style="margin-top: 15px; font-weight: bold; color: #007bff;"></div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="targetRegion">Target Azure Region</label>
+                        <select id="targetRegion" name="targetRegion">
+                            <option value="East US">East US</option>
+                            <option value="West US">West US</option>
+                            <option value="North Europe">North Europe</option>
+                            <option value="East Asia">East Asia</option>
+                            <option value="Southeast Asia">Southeast Asia</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="budgetConstraint">Budget Constraint (USD/month)</label>
+                        <input type="number" id="budgetConstraint" name="budgetConstraint" placeholder="e.g., 500" min="0">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="complianceProfile">Compliance Profile</label>
+                        <select id="complianceProfile" name="complianceProfile">
+                            <option value="default">Default</option>
+                            <option value="hipaa">HIPAA</option>
+                            <option value="pci">PCI DSS</option>
+                            <option value="sox">SOX</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="scalabilityRequirements">Scalability Requirements</label>
+                        <input type="text" id="scalabilityRequirements" name="scalabilityRequirements" placeholder="e.g., High availability, Auto-scaling">
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn" id="processBtn">
+                    🚀 Process Diagram
+                </button>
+            </form>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <h3>Processing your architecture diagram...</h3>
+                <p>Our AI agents are analyzing your diagram and generating optimized Bicep files.</p>
+                <p>Trace ID: <span class="trace-id" id="currentTraceId"></span></p>
+            </div>
+            
+            <div class="results" id="results">
+                <h3>✅ Processing Complete!</h3>
+                
+                <div class="result-item">
+                    <h4>📊 Analysis Summary</h4>
+                    <p id="analysisInfo"></p>
+                </div>
+                
+                <div class="result-item">
+                    <h4>🛡️ Compliance Report</h4>
+                    <p id="complianceInfo"></p>
+                </div>
+                
+                <div class="result-item">
+                    <h4>💰 Cost Optimization</h4>
+                    <p id="costInfo"></p>
+                </div>
+                
+                <div class="result-item">
+                    <h4>⏱️ Processing Details</h4>
+                    <p>Processing Time: <span id="processingTime"></span>ms</p>
+                    <p>Trace ID: <span class="trace-id" id="resultTraceId"></span></p>
+                </div>
+                
+                <button type="button" class="btn download-btn" id="downloadBtn">
+                    💾 Download Generated Files
+                </button>
+            </div>
+            
+            <div class="error" id="error">
+                <h3>❌ Processing Failed</h3>
+                <p id="errorMessage"></p>
+                <p>Trace ID: <span class="trace-id" id="errorTraceId"></span></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadForm = document.getElementById('uploadForm');
+        const uploadSection = document.getElementById('uploadSection');
+        const diagramFile = document.getElementById('diagramFile');
+        const selectedFile = document.getElementById('selectedFile');
+        const processBtn = document.getElementById('processBtn');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        const error = document.getElementById('error');
+
+        // File selection handling
+        diagramFile.addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                const fileType = getFileType(file.name);
+                selectedFile.innerHTML = `
+                    <div>Selected: <strong>${file.name}</strong></div>
+                    <div style="font-size: 0.9em; color: #666;">
+                        Format: ${fileType} | Size: ${(file.size / 1024 / 1024).toFixed(2)} MB
+                    </div>
+                `;
+            }
+        });
+
+        function getFileType(fileName) {
+            const extension = fileName.toLowerCase().split('.').pop();
+            const formatMap = {
+                'drawio': 'Draw.io Diagram',
+                'xml': 'XML/Draw.io',
+                'png': 'PNG Image',
+                'jpg': 'JPEG Image',
+                'jpeg': 'JPEG Image',
+                'gif': 'GIF Image',
+                'svg': 'SVG Vector',
+                'webp': 'WebP Image',
+                'pdf': 'PDF Document',
+                'vsdx': 'Visio Diagram'
+            };
+            return formatMap[extension] || 'Unknown Format';
+        }
+
+        // Drag and drop handling
+        uploadSection.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            uploadSection.classList.add('dragover');
+        });
+
+        uploadSection.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+        });
+
+        uploadSection.addEventListener('drop', function(e) {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                diagramFile.files = files;
+                const file = files[0];
+                const fileType = getFileType(file.name);
+                selectedFile.innerHTML = `
+                    <div>Selected: <strong>${file.name}</strong></div>
+                    <div style="font-size: 0.9em; color: #666;">
+                        Format: ${fileType} | Size: ${(file.size / 1024 / 1024).toFixed(2)} MB
+                    </div>
+                `;
+            }
+        });
+
+        // Form submission
+        uploadForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (!diagramFile.files.length) {
+                alert('Please select a diagram file first.');
+                return;
+            }
+
+            // Hide previous results/errors
+            results.style.display = 'none';
+            error.style.display = 'none';
+            
+            // Show loading
+            loading.style.display = 'block';
+            processBtn.disabled = true;
+            processBtn.textContent = 'Processing...';
+
+            try {
+                const formData = new FormData(uploadForm);
+                
+                const response = await fetch('/api/process-diagram', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    // Show results
+                    displayResults(result);
+                } else {
+                    throw new Error(result.message || 'Processing failed');
+                }
+
+            } catch (err) {
+                displayError(err.message);
+            } finally {
+                loading.style.display = 'none';
+                processBtn.disabled = false;
+                processBtn.textContent = '🚀 Process Diagram';
+            }
+        });
+
+        function displayResults(result) {
+            document.getElementById('currentTraceId').textContent = result.traceId;
+            
+            document.getElementById('analysisInfo').textContent = 
+                `Found ${result.analysis.resourceCount} resources in a ${result.analysis.pattern} architecture (${result.analysis.complexity} complexity)`;
+            
+            document.getElementById('complianceInfo').textContent = 
+                result.compliance.compliant 
+                    ? '✅ All policies compliant' 
+                    : `❌ ${result.compliance.violationCount} policy violations found`;
+            
+            document.getElementById('costInfo').textContent = 
+                `Estimated monthly cost: $${result.cost.estimatedMonthlyCost.toFixed(2)} | Potential savings: $${result.cost.potentialSavings.toFixed(2)}`;
+            
+            document.getElementById('processingTime').textContent = result.processingTime;
+            document.getElementById('resultTraceId').textContent = result.traceId;
+            
+            const downloadBtn = document.getElementById('downloadBtn');
+            downloadBtn.onclick = () => {
+                window.open(result.downloadUrl, '_blank');
+            };
+
+            results.style.display = 'block';
+        }
+
+        function displayError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            error.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
