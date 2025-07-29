@@ -1,0 +1,24 @@
+{
+  "id": "comp-002-allowed-regions",
+  "name": "Allowed Azure Regions",
+  "category": "compliance",
+  "description": "Resources can only be deployed in approved Azure regions for compliance",
+  "severity": "critical",
+  "resourceTypes": ["*"],
+  "conditions": {
+    "property": "location",
+    "operator": "notContains",
+    "value": ["West Europe", "North Europe"]
+  },
+  "fix": {
+    "action": "set",
+    "property": "location",
+    "value": "West Europe"
+  },
+  "bicepModification": {
+    "template": "// Ensure resources are deployed in approved regions\nlocation: 'West Europe'  // Approved region",
+    "parameters": ["allowedLocation"]
+  },
+  "enabled": true,
+  "tags": ["compliance", "geography", "data-residency"]
+}

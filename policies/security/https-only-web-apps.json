@@ -1,0 +1,24 @@
+{
+  "id": "sec-001-https-only",
+  "name": "Web Apps Must Use HTTPS Only",
+  "category": "security",
+  "description": "All App Service web applications must enforce HTTPS-only traffic to ensure secure communication",
+  "severity": "high",
+  "resourceTypes": ["Microsoft.Web/sites"],
+  "conditions": {
+    "property": "properties.httpsOnly",
+    "operator": "notEquals",
+    "value": true
+  },
+  "fix": {
+    "action": "set",
+    "property": "properties.httpsOnly",
+    "value": true
+  },
+  "bicepModification": {
+    "template": "resource webApp 'Microsoft.Web/sites@2022-03-01' = {\n  properties: {\n    httpsOnly: true\n  }\n}",
+    "parameters": []
+  },
+  "enabled": true,
+  "tags": ["security", "https", "app-service"]
+}

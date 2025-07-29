@@ -7,6 +7,7 @@ import {
   GeneratedFiles,
   AzureResource 
 } from '../types';
+import { ManualPolicyResult, BicepModification } from '../types/policies';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import archiver from 'archiver';
@@ -24,7 +25,7 @@ export class GeneratorAgent {
 
   async generateFiles(
     analysis: DiagramAnalysis,
-    complianceReport: PolicyComplianceResult,
+    complianceReport: PolicyComplianceResult & { manualPolicyResult?: ManualPolicyResult },
     costOptimization: CostOptimization,
     userRequirements?: any,
     traceId?: string
@@ -66,7 +67,7 @@ export class GeneratorAgent {
   async packageFiles(
     files: GeneratedFiles, 
     traceId: string,
-    complianceReport?: PolicyComplianceResult,
+    complianceReport?: PolicyComplianceResult & { manualPolicyResult?: ManualPolicyResult },
     costOptimization?: CostOptimization
   ): Promise<string> {
     logger.info('Starting file packaging', { traceId });
@@ -99,6 +100,12 @@ export class GeneratorAgent {
         archive.append(costOptimization.costReport, { name: 'reports/cost-optimization-report.md' });
       }
 
+      // Add manual policy violations report if any
+      if (complianceReport?.manualPolicyResult && complianceReport.manualPolicyResult.violationsCount > 0) {
+        const manualPolicyReport = this.generateManualPolicyReport(complianceReport.manualPolicyResult);
+        archive.append(manualPolicyReport, { name: 'reports/manual-policy-violations.md' });
+      }
+
       // Add summary report
       const summaryReport = this.generateSummaryReport(complianceReport, costOptimization, traceId);
       archive.append(summaryReport, { name: 'reports/executive-summary.md' });
@@ -121,7 +128,8 @@ export class GeneratorAgent {
         reportsIncluded: {
           policyCompliance: !!complianceReport?.policyReport,
           costOptimization: !!costOptimization?.costReport,
-          autoFixes: complianceReport?.fixedResources?.length || 0
+          autoFixes: complianceReport?.fixedResources?.length || 0,
+          manualPolicyViolations: complianceReport?.manualPolicyResult?.violationsCount || 0
         }
       });
 
@@ -167,7 +175,7 @@ export class GeneratorAgent {
 
   private generateBicepContent(
     analysis: DiagramAnalysis,
-    complianceReport: PolicyComplianceResult,
+    complianceReport: PolicyComplianceResult & { manualPolicyResult?: ManualPolicyResult },
     costOptimization: CostOptimization
   ): string {
     let bicepContent = `// Azure Bicep Template
@@ -202,6 +210,14 @@ var tags = {
       bicepContent += '\n\n';
     });
 
+    // Apply manual policy fixes to Bicep template
+    if (complianceReport.manualPolicyResult && complianceReport.manualPolicyResult.bicepModifications.length > 0) {
+      bicepContent += '\n// Manual Policy Compliance Modifications\n';
+      complianceReport.manualPolicyResult.bicepModifications.forEach((modification: BicepModification) => {
+        bicepContent += `// Policy compliance modification\n${modification.template}\n\n`;
+      });
+    }
+
     // Add outputs
     bicepContent += `// Outputs
 `;
@@ -216,9 +232,10 @@ var tags = {
     return bicepContent;
   }
 
-  private generateBicepResource(resource: AzureResource, index: number, complianceReport: PolicyComplianceResult): string {
+  private generateBicepResource(resource: AzureResource, index: number, complianceReport: PolicyComplianceResult & { manualPolicyResult?: ManualPolicyResult }): string {
     const resourceName = this.getBicepResourceName(resource, index);
     const violations = complianceReport.violations.filter(v => v.resource === resource.name);
+    const manualViolations = complianceReport.manualPolicyResult?.violations.filter(v => v.resource === resource.name) || [];
 
     switch (resource.type) {
       case 'Microsoft.Web/sites':
@@ -231,10 +248,11 @@ resource ${resourceName} 'Microsoft.Web/sites@2023-01-01' = {
     serverFarmId: appServicePlan.id
     httpsOnly: true // Compliance: HTTPS enforcement
     siteConfig: {
-      ${violations.some(v => v.policy === 'HTTPS_ENFORCEMENT') ? 'httpsOnly: true' : ''}
+      ${violations.some(v => v.policy === 'HTTPS_ENFORCEMENT') || manualViolations.some(v => v.policyId.includes('https')) ? 'httpsOnly: true' : ''}
       minTlsVersion: '1.2'
       ftpsState: 'Disabled'
     }
+    ${this.applyManualPolicyFixes(resource, manualViolations)}
   }
 }
 
@@ -258,6 +276,7 @@ resource sqlServer 'Microsoft.Sql/servers@2023-05-01-preview' = {
     administratorLogin: 'sqladmin'
     administratorLoginPassword: 'P@ssw0rd123!' // Use Key Vault in production
     minimalTlsVersion: '1.2'
+    ${this.applyManualPolicyFixes(resource, manualViolations)}
   }
 }
 
@@ -298,6 +317,7 @@ resource ${resourceName} 'Microsoft.Storage/storageAccounts@2023-01-01' = {
     }
     supportsHttpsTrafficOnly: true // Compliance: HTTPS enforcement
     minimumTlsVersion: 'TLS1_2'
+    ${this.applyManualPolicyFixes(resource, manualViolations)}
   }
 }`;
 
@@ -428,9 +448,143 @@ stages:
     return JSON.stringify(parameters, null, 2);
   }
 
+  /**
+   * Apply manual policy fixes to Bicep resource properties
+   */
+  private applyManualPolicyFixes(resource: AzureResource, manualViolations: any[]): string {
+    let fixes = '';
+    
+    manualViolations.forEach(violation => {
+      const { fix } = violation;
+      if (fix && fix.property && fix.value !== undefined) {
+        // Convert property path to Bicep format
+        const bicepProperty = fix.property.replace(/\./g, ': {\n      ');
+        const closingBraces = '}\n    '.repeat((fix.property.split('.').length - 1));
+        
+        switch (fix.action) {
+          case 'set':
+            if (typeof fix.value === 'string') {
+              fixes += `${bicepProperty}: '${fix.value}'${closingBraces}\n    `;
+            } else if (typeof fix.value === 'boolean') {
+              fixes += `${bicepProperty}: ${fix.value}${closingBraces}\n    `;
+            } else {
+              fixes += `${bicepProperty}: ${JSON.stringify(fix.value)}${closingBraces}\n    `;
+            }
+            break;
+        }
+      }
+    });
+    
+    return fixes;
+  }
+
+  /**
+   * Generate manual policy violations report
+   */
+  private generateManualPolicyReport(manualPolicyResult: ManualPolicyResult): string {
+    const timestamp = new Date().toISOString();
+    
+    return `# Manual Policy Violations Report
+
+Generated by AI Superman Policy Agent
+Date: ${timestamp}
+
+## Overview
+
+This report details violations found against your manually configured policies located in the \`policies/\` directory.
+
+## Summary
+
+- **Total Manual Policies Evaluated**: ${manualPolicyResult.totalPolicies}
+- **Total Violations Found**: ${manualPolicyResult.violationsCount}
+- **Compliance Status**: ${manualPolicyResult.compliant ? '✅ COMPLIANT' : '❌ NON-COMPLIANT'}
+- **Auto-Fixed Violations**: ${manualPolicyResult.appliedFixes.length}
+
+### Violations by Severity
+
+- **Critical**: ${manualPolicyResult.summary.critical}
+- **High**: ${manualPolicyResult.summary.high}
+- **Medium**: ${manualPolicyResult.summary.medium}
+- **Low**: ${manualPolicyResult.summary.low}
+
+## Manual Policy Violations
+
+${manualPolicyResult.violations.length === 0 ? '✅ No manual policy violations found!' : 
+manualPolicyResult.violations.map((violation, index) => `
+### ${index + 1}. ${violation.policyName} - ${violation.severity.toUpperCase()}
+
+- **Policy ID**: ${violation.policyId}
+- **Resource**: ${violation.resource} (${violation.resourceType})
+- **Description**: ${violation.description}
+- **Current Value**: \`${JSON.stringify(violation.currentValue)}\`
+- **Expected Value**: \`${JSON.stringify(violation.expectedValue)}\`
+- **Fix Required**: ${violation.fix.action} \`${violation.fix.property}\` to \`${JSON.stringify(violation.fix.value)}\`
+- **Status**: ${manualPolicyResult.appliedFixes.some(f => f.property === violation.fix.property) ? '🔧 AUTO-FIXED' : '⚠️ REQUIRES MANUAL ATTENTION'}
+
+#### Bicep Template Modification
+\`\`\`bicep
+${violation.bicepModification.template}
+\`\`\`
+
+---
+`).join('')}
+
+## Applied Fixes
+
+${manualPolicyResult.appliedFixes.length === 0 ? 'No automatic fixes were applied for manual policies.' :
+`The following fixes were automatically applied to your Bicep templates:
+
+${manualPolicyResult.appliedFixes.map((fix, index) => `
+${index + 1}. **Property**: \`${fix.property}\`
+   - **Action**: ${fix.action}
+   - **Value**: \`${JSON.stringify(fix.value)}\`
+`).join('')}`}
+
+## Bicep Template Modifications
+
+${manualPolicyResult.bicepModifications.length === 0 ? 'No Bicep modifications were required.' :
+`The following modifications have been applied to your Bicep templates:
+
+${manualPolicyResult.bicepModifications.map((mod, index) => `
+### Modification ${index + 1}
+
+\`\`\`bicep
+${mod.template}
+\`\`\`
+
+**Parameters**: ${mod.parameters?.join(', ') || 'None'}
+
+---
+`).join('')}`}
+
+## Recommendations
+
+1. **Review Manual Policies**: Ensure your manual policies in the \`policies/\` directory reflect current requirements
+2. **Update Policy Files**: Modify JSON policy files as needed for your organization
+3. **Validate Fixes**: Test the generated Bicep templates in a development environment
+4. **Continuous Monitoring**: Consider implementing Azure Policy for runtime compliance monitoring
+
+## Policy File Locations
+
+Your manual policies are organized in the following structure:
+
+\`\`\`
+policies/
+├── security/          # Security-related policies
+├── cost/             # Cost optimization policies  
+├── performance/      # Performance-related policies
+├── compliance/       # Regulatory compliance policies
+└── custom/           # Organization-specific policies
+\`\`\`
+
+---
+*This report was generated automatically by AI Superman's Manual Policy Engine*
+`;
+  }
+
   private generateReadmeContent(
     analysis: DiagramAnalysis,
-    complianceReport: PolicyComplianceResult,
+    complianceReport: PolicyComplianceResult & { manualPolicyResult?: ManualPolicyResult },
     costOptimization: CostOptimization
   ): string {
     return `# Azure Infrastructure Deployment
@@ -460,14 +614,24 @@ ${costOptimization.optimizations.map(opt =>
 
 ## Compliance Report
 
-- **Overall Compliance**: ${complianceReport.compliant ? '✅ Compliant' : '❌ Non-Compliant'}
-- **Violations**: ${complianceReport.violations.length}
+- **Overall Compliance**: ${complianceReport.compliant && (complianceReport.manualPolicyResult?.compliant ?? true) ? '✅ Compliant' : '❌ Non-Compliant'}
+- **Built-in Policy Violations**: ${complianceReport.violations.length}
+- **Manual Policy Violations**: ${complianceReport.manualPolicyResult?.violationsCount || 0}
 
 ${complianceReport.violations.length > 0 ? `
-### Policy Violations
+### Built-in Policy Violations
 ${complianceReport.violations.map(v => 
   `- **${v.resource}** - ${v.policy}: ${v.description} (${v.severity})`
 ).join('\n')}
+` : ''}
+
+${complianceReport.manualPolicyResult && complianceReport.manualPolicyResult.violationsCount > 0 ? `
+### Manual Policy Violations  
+${complianceReport.manualPolicyResult.violations.map(v => 
+  `- **${v.resource}** - ${v.policyName}: ${v.description} (${v.severity})`
+).join('\n')}
+
+For detailed manual policy analysis, see: \`reports/manual-policy-violations.md\`
 ` : ''}
 
 ## Deployment Instructions
@@ -512,7 +676,7 @@ This deployment package was automatically generated from your architecture diagr
   }
 
   private generateSummaryReport(
-    complianceReport?: PolicyComplianceResult,
+    complianceReport?: PolicyComplianceResult & { manualPolicyResult?: ManualPolicyResult },
     costOptimization?: CostOptimization,
     traceId?: string
   ): string {
@@ -530,10 +694,11 @@ This deployment package was automatically generated by AI Superman, your archite
 ## Security & Compliance Summary
 
 ${complianceReport ? `
-- **Compliance Status**: ${complianceReport.compliant ? '✅ COMPLIANT' : '❌ NON-COMPLIANT'}
-- **Total Violations**: ${complianceReport.violations.length}
+- **Overall Compliance Status**: ${complianceReport.compliant && (complianceReport.manualPolicyResult?.compliant ?? true) ? '✅ COMPLIANT' : '❌ NON-COMPLIANT'}
+- **Built-in Policy Violations**: ${complianceReport.violations.length}
+- **Manual Policy Violations**: ${complianceReport.manualPolicyResult?.violationsCount || 0}
 - **Auto-Fixed Issues**: ${complianceReport.fixedResources?.length || 0}
-- **Critical Issues**: ${complianceReport.violations.filter(v => v.severity === 'critical').length}
+- **Critical Issues**: ${complianceReport.violations.filter(v => v.severity === 'critical').length + (complianceReport.manualPolicyResult?.summary.critical || 0)}
 
 ${complianceReport.fixedResources && complianceReport.fixedResources.length > 0 ? `
 ### Automatic Security Fixes Applied
@@ -573,6 +738,8 @@ For detailed cost analysis, see: \`reports/cost-optimization-report.md\`
 - \`executive-summary.md\` - This executive summary
 ${complianceReport?.fixedResources && complianceReport.fixedResources.length > 0 ? 
   '- `auto-fixes-applied.md` - Detailed log of automatic security fixes' : ''}
+${complianceReport?.manualPolicyResult && complianceReport.manualPolicyResult.violationsCount > 0 ?
+  '- `manual-policy-violations.md` - Manual policy violations and fixes' : ''}
 
 ## Next Steps
 

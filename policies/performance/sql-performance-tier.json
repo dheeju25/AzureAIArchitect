@@ -1,0 +1,24 @@
+{
+  "id": "perf-002-sql-tier",
+  "name": "SQL Database Performance Tier Optimization",
+  "category": "performance",
+  "description": "Ensure SQL databases use appropriate performance tiers for production workloads",
+  "severity": "medium",
+  "resourceTypes": ["Microsoft.Sql/servers/databases"],
+  "conditions": {
+    "property": "sku.tier",
+    "operator": "equals",
+    "value": "Basic"
+  },
+  "fix": {
+    "action": "set",
+    "property": "sku.tier",
+    "value": "Standard"
+  },
+  "bicepModification": {
+    "template": "resource sqlDatabase 'Microsoft.Sql/servers/databases@2022-05-01-preview' = {\n  sku: {\n    name: 'S2'\n    tier: 'Standard'  // Better performance than Basic\n  }\n}",
+    "parameters": []
+  },
+  "enabled": true,
+  "tags": ["performance", "sql-database", "sku"]
+}

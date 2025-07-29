@@ -1,0 +1,24 @@
+{
+  "id": "cost-002-storage-tier",
+  "name": "Storage Account Default Access Tier Optimization",
+  "category": "cost",
+  "description": "Set appropriate default access tier for storage accounts to optimize costs",
+  "severity": "low",
+  "resourceTypes": ["Microsoft.Storage/storageAccounts"],
+  "conditions": {
+    "property": "properties.accessTier",
+    "operator": "equals",
+    "value": "Premium"
+  },
+  "fix": {
+    "action": "set",
+    "property": "properties.accessTier",
+    "value": "Hot"
+  },
+  "bicepModification": {
+    "template": "resource storageAccount 'Microsoft.Storage/storageAccounts@2022-09-01' = {\n  properties: {\n    accessTier: 'Hot'  // Optimized for frequently accessed data\n  }\n}",
+    "parameters": []
+  },
+  "enabled": true,
+  "tags": ["cost", "storage", "access-tier"]
+}

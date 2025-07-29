@@ -1,0 +1,24 @@
+{
+  "id": "custom-001-naming",
+  "name": "Organization Naming Convention",
+  "category": "custom",
+  "description": "Enforce organization-specific naming conventions for all resources",
+  "severity": "medium",
+  "resourceTypes": ["*"],
+  "conditions": {
+    "property": "name",
+    "operator": "notContains",
+    "value": "aisuperman"
+  },
+  "fix": {
+    "action": "set",
+    "property": "name",
+    "value": "aisuperman-${resourceType}-${environment}"
+  },
+  "bicepModification": {
+    "template": "// Apply naming convention\nname: 'aisuperman-${resourceType}-${environment}-${uniqueString(resourceGroup().id)}'",
+    "parameters": ["resourceType", "environment"]
+  },
+  "enabled": true,
+  "tags": ["custom", "naming", "organization"]
+}

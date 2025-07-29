@@ -1,0 +1,24 @@
+{
+  "id": "sec-002-vm-encryption",
+  "name": "Virtual Machine Disk Encryption Required",
+  "category": "security",
+  "description": "All virtual machines must have disk encryption enabled to protect data at rest",
+  "severity": "critical",
+  "resourceTypes": ["Microsoft.Compute/virtualMachines"],
+  "conditions": {
+    "property": "properties.storageProfile.osDisk.encryptionSettings.enabled",
+    "operator": "notEquals",
+    "value": true
+  },
+  "fix": {
+    "action": "set",
+    "property": "properties.storageProfile.osDisk.encryptionSettings.enabled",
+    "value": true
+  },
+  "bicepModification": {
+    "template": "resource vm 'Microsoft.Compute/virtualMachines@2022-03-01' = {\n  properties: {\n    storageProfile: {\n      osDisk: {\n        encryptionSettings: {\n          enabled: true\n        }\n      }\n    }\n  }\n}",
+    "parameters": ["keyVaultUrl", "keyEncryptionKeyUrl"]
+  },
+  "enabled": true,
+  "tags": ["security", "encryption", "virtual-machines"]
+}

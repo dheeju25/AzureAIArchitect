@@ -1,0 +1,24 @@
+{
+  "id": "cost-001-vm-sizing",
+  "name": "Virtual Machine Right Sizing",
+  "category": "cost",
+  "description": "Prevent oversized VM SKUs that exceed typical workload requirements",
+  "severity": "medium",
+  "resourceTypes": ["Microsoft.Compute/virtualMachines"],
+  "conditions": {
+    "property": "properties.hardwareProfile.vmSize",
+    "operator": "contains",
+    "value": "Standard_D32"
+  },
+  "fix": {
+    "action": "set",
+    "property": "properties.hardwareProfile.vmSize",
+    "value": "Standard_D4s_v3"
+  },
+  "bicepModification": {
+    "template": "resource vm 'Microsoft.Compute/virtualMachines@2022-03-01' = {\n  properties: {\n    hardwareProfile: {\n      vmSize: 'Standard_D4s_v3'  // Right-sized for typical workloads\n    }\n  }\n}",
+    "parameters": []
+  },
+  "enabled": true,
+  "tags": ["cost", "right-sizing", "virtual-machines"]
+}

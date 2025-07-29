@@ -1,0 +1,24 @@
+{
+  "id": "perf-001-always-on",
+  "name": "App Service Always On Configuration",
+  "category": "performance",
+  "description": "Enable Always On for App Service to prevent cold starts and improve performance",
+  "severity": "medium",
+  "resourceTypes": ["Microsoft.Web/sites"],
+  "conditions": {
+    "property": "properties.siteConfig.alwaysOn",
+    "operator": "notEquals",
+    "value": true
+  },
+  "fix": {
+    "action": "set",
+    "property": "properties.siteConfig.alwaysOn",
+    "value": true
+  },
+  "bicepModification": {
+    "template": "resource webApp 'Microsoft.Web/sites@2022-03-01' = {\n  properties: {\n    siteConfig: {\n      alwaysOn: true  // Prevents cold starts\n    }\n  }\n}",
+    "parameters": []
+  },
+  "enabled": true,
+  "tags": ["performance", "app-service", "always-on"]
+}

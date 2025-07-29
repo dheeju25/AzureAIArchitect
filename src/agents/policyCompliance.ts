@@ -1,21 +1,25 @@
 import { tracingService } from '../services/tracing';
 import { logger } from '../utils/logger';
 import { AzureResource, PolicyComplianceResult, PolicyViolation } from '../types';
+import { ManualPolicyLoader } from '../utils/manualPolicyLoader';
+import { ManualPolicy, ManualPolicyResult, ManualPolicyViolation, PolicyEvaluationContext } from '../types/policies';
 
 export class PolicyComplianceAgent {
   private azureAIEndpoint: string;
   private azureAIKey: string;
+  private manualPolicyLoader: ManualPolicyLoader;
 
   constructor() {
     this.azureAIEndpoint = process.env.POLICY_COMPLIANCE_AGENT_URL || '';
     this.azureAIKey = process.env.AZURE_AI_FOUNDRY_API_KEY || '';
+    this.manualPolicyLoader = new ManualPolicyLoader();
   }
 
   async validateCompliance(
     resources: AzureResource[],
     complianceProfile?: string,
     traceId?: string
-  ): Promise<PolicyComplianceResult> {
+  ): Promise<PolicyComplianceResult & { manualPolicyResult: ManualPolicyResult }> {
     logger.info('Starting policy compliance validation', {
       traceId,
       resourceCount: resources.length,
@@ -32,19 +36,30 @@ export class PolicyComplianceAgent {
 
       const result = this.parseComplianceResult(complianceResult);
 
-      // Auto-fix policy violations
+      // Evaluate manual policies
+      const manualPolicyResult = await this.evaluateManualPolicies(resources, traceId);
+
+      // Auto-fix policy violations (both built-in and manual)
       result.fixedResources = await this.autoFixPolicyViolations(resources, result.violations);
-      result.policyReport = await this.generateDetailedPolicyReport(result, complianceProfile);
+      const fixedManualResources = await this.autoFixManualPolicyViolations(resources, manualPolicyResult.violations);
+      
+      // Combine fixed resources
+      result.fixedResources = [...result.fixedResources, ...fixedManualResources];
+      manualPolicyResult.appliedFixes = fixedManualResources.map(fix => fix.fix || {});
+      
+      result.policyReport = await this.generateDetailedPolicyReport(result, complianceProfile, manualPolicyResult);
 
       logger.info('Policy compliance validation completed', {
         traceId,
-        compliant: result.compliant,
+        compliant: result.compliant && manualPolicyResult.compliant,
         violationCount: result.violations.length,
+        manualViolationCount: manualPolicyResult.violationsCount,
         criticalViolations: result.violations.filter(v => v.severity === 'critical').length,
+        criticalManualViolations: manualPolicyResult.summary.critical,
         fixedViolations: result.fixedResources.length
       });
 
-      return result;
+      return { ...result, manualPolicyResult };
 
     } catch (error) {
       logger.error('Policy compliance validation failed', {
@@ -140,9 +155,310 @@ export class PolicyComplianceAgent {
     return fixedResources;
   }
 
+  /**
+   * Evaluate resources against manual policies
+   */
+  async evaluateManualPolicies(
+    resources: AzureResource[],
+    traceId?: string
+  ): Promise<ManualPolicyResult> {
+    logger.info('Starting manual policy evaluation', {
+      traceId,
+      resourceCount: resources.length
+    });
+
+    try {
+      // Load manual policies
+      const manualPolicies = await this.manualPolicyLoader.loadPolicies();
+      
+      if (manualPolicies.length === 0) {
+        logger.info('No manual policies found', { traceId });
+        return {
+          compliant: true,
+          totalPolicies: 0,
+          violationsCount: 0,
+          violations: [],
+          appliedFixes: [],
+          bicepModifications: [],
+          summary: { critical: 0, high: 0, medium: 0, low: 0 }
+        };
+      }
+
+      const violations: ManualPolicyViolation[] = [];
+      const bicepModifications: any[] = [];
+      
+      // Evaluate each resource against applicable policies
+      for (const resource of resources) {
+        const applicablePolicies = await this.manualPolicyLoader.getPoliciesForResourceType(resource.type);
+        
+        for (const policy of applicablePolicies) {
+          if (!policy.enabled) continue;
+
+          const context: PolicyEvaluationContext = {
+            resource,
+            resourceType: resource.type,
+            resourceName: resource.name,
+            properties: resource.properties || {}
+          };
+
+          const violationFound = this.evaluatePolicyCondition(policy, context);
+          
+          if (violationFound) {
+            violations.push({
+              policyId: policy.id,
+              policyName: policy.name,
+              resource: resource.name,
+              resourceType: resource.type,
+              severity: policy.severity,
+              description: policy.description,
+              currentValue: this.getPropertyValue(context, policy.conditions.property),
+              expectedValue: policy.conditions.value,
+              fix: policy.fix,
+              bicepModification: policy.bicepModification
+            });
+
+            // Collect Bicep modifications for fixes
+            if (policy.bicepModification) {
+              bicepModifications.push(policy.bicepModification);
+            }
+          }
+        }
+      }
+
+      // Calculate summary statistics
+      const summary = {
+        critical: violations.filter(v => v.severity === 'critical').length,
+        high: violations.filter(v => v.severity === 'high').length,
+        medium: violations.filter(v => v.severity === 'medium').length,
+        low: violations.filter(v => v.severity === 'low').length
+      };
+
+      const result: ManualPolicyResult = {
+        compliant: violations.length === 0,
+        totalPolicies: manualPolicies.length,
+        violationsCount: violations.length,
+        violations,
+        appliedFixes: [], // Will be populated by auto-fix function
+        bicepModifications,
+        summary
+      };
+
+      logger.info('Manual policy evaluation completed', {
+        traceId,
+        totalPolicies: manualPolicies.length,
+        violations: violations.length,
+        compliant: result.compliant,
+        summary
+      });
+
+      return result;
+    } catch (error) {
+      logger.error('Manual policy evaluation failed', {
+        traceId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      
+      // Return empty result on error
+      return {
+        compliant: true,
+        totalPolicies: 0,
+        violationsCount: 0,
+        violations: [],
+        appliedFixes: [],
+        bicepModifications: [],
+        summary: { critical: 0, high: 0, medium: 0, low: 0 }
+      };
+    }
+  }
+
+  /**
+   * Auto-fix manual policy violations
+   */
+  async autoFixManualPolicyViolations(
+    resources: AzureResource[],
+    violations: ManualPolicyViolation[]
+  ): Promise<any[]> {
+    const fixedResources: any[] = [];
+
+    for (const violation of violations) {
+      const resource = resources.find(r => r.name === violation.resource);
+      if (!resource) continue;
+
+      const originalConfig = JSON.stringify(resource);
+      let fixApplied = false;
+
+      try {
+        // Apply the fix based on the policy definition
+        switch (violation.fix.action) {
+          case 'set':
+            this.setPropertyValue(resource, violation.fix.property, violation.fix.value);
+            fixApplied = true;
+            break;
+          
+          case 'add':
+            this.addPropertyValue(resource, violation.fix.property, violation.fix.value);
+            fixApplied = true;
+            break;
+          
+          case 'remove':
+            this.removePropertyValue(resource, violation.fix.property);
+            fixApplied = true;
+            break;
+        }
+
+        if (fixApplied) {
+          fixedResources.push({
+            resourceName: resource.name,
+            resourceType: resource.type,
+            policyId: violation.policyId,
+            policyName: violation.policyName,
+            severity: violation.severity,
+            description: violation.description,
+            fix: violation.fix,
+            originalConfig,
+            newConfig: JSON.stringify(resource),
+            fixedAt: new Date().toISOString()
+          });
+        }
+      } catch (error) {
+        logger.error('Failed to apply manual policy fix', {
+          policyId: violation.policyId,
+          resource: violation.resource,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }
+
+    return fixedResources;
+  }
+
+  /**
+   * Evaluate a policy condition against a resource
+   */
+  private evaluatePolicyCondition(policy: ManualPolicy, context: PolicyEvaluationContext): boolean {
+    const { conditions } = policy;
+    const actualValue = this.getPropertyValue(context, conditions.property);
+    const expectedValue = conditions.value;
+
+    switch (conditions.operator) {
+      case 'equals':
+        return actualValue !== expectedValue;
+      
+      case 'notEquals':
+        return actualValue === expectedValue;
+      
+      case 'contains':
+        if (Array.isArray(expectedValue)) {
+          return !expectedValue.includes(actualValue);
+        }
+        return !String(actualValue).includes(String(expectedValue));
+      
+      case 'notContains':
+        if (Array.isArray(expectedValue)) {
+          return expectedValue.includes(actualValue);
+        }
+        return String(actualValue).includes(String(expectedValue));
+      
+      case 'greaterThan':
+        return Number(actualValue) <= Number(expectedValue);
+      
+      case 'lessThan':
+        return Number(actualValue) >= Number(expectedValue);
+      
+      case 'exists':
+        return actualValue === undefined || actualValue === null;
+      
+      case 'notExists':
+        return actualValue !== undefined && actualValue !== null;
+      
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Get property value from resource using dot notation
+   */
+  private getPropertyValue(context: PolicyEvaluationContext, propertyPath: string): any {
+    const parts = propertyPath.split('.');
+    let value: any = context.resource;
+
+    for (const part of parts) {
+      if (value && typeof value === 'object') {
+        value = value[part];
+      } else {
+        return undefined;
+      }
+    }
+
+    return value;
+  }
+
+  /**
+   * Set property value on resource using dot notation
+   */
+  private setPropertyValue(resource: any, propertyPath: string, value: any): void {
+    const parts = propertyPath.split('.');
+    let current = resource;
+
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (!current[part] || typeof current[part] !== 'object') {
+        current[part] = {};
+      }
+      current = current[part];
+    }
+
+    current[parts[parts.length - 1]] = value;
+  }
+
+  /**
+   * Add value to property (for arrays or objects)
+   */
+  private addPropertyValue(resource: any, propertyPath: string, value: any): void {
+    const parts = propertyPath.split('.');
+    let current = resource;
+
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (!current[part]) {
+        current[part] = {};
+      }
+      current = current[part];
+    }
+
+    const finalProp = parts[parts.length - 1];
+    if (Array.isArray(current[finalProp])) {
+      current[finalProp].push(value);
+    } else if (typeof current[finalProp] === 'object') {
+      Object.assign(current[finalProp], value);
+    } else {
+      current[finalProp] = value;
+    }
+  }
+
+  /**
+   * Remove property value
+   */
+  private removePropertyValue(resource: any, propertyPath: string): void {
+    const parts = propertyPath.split('.');
+    let current = resource;
+
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (!current[part]) {
+        return; // Property doesn't exist
+      }
+      current = current[part];
+    }
+
+    delete current[parts[parts.length - 1]];
+  }
+
   async generateDetailedPolicyReport(
     result: PolicyComplianceResult,
-    complianceProfile?: string
+    complianceProfile?: string,
+    manualPolicyResult?: ManualPolicyResult
   ): Promise<string> {
     const policies = await this.getApplicablePolicies(complianceProfile);
     const timestamp = new Date().toISOString();
@@ -155,11 +471,12 @@ Compliance Profile: ${complianceProfile || 'default'}
 
 ## Executive Summary
 
-- **Overall Compliance Status**: ${result.compliant ? '✅ COMPLIANT' : '❌ NON-COMPLIANT'}
-- **Total Violations Found**: ${result.violations.length}
-- **Critical Violations**: ${result.violations.filter(v => v.severity === 'critical').length}
-- **High Severity**: ${result.violations.filter(v => v.severity === 'high').length}
-- **Medium Severity**: ${result.violations.filter(v => v.severity === 'medium').length}
+- **Overall Compliance Status**: ${result.compliant && (manualPolicyResult?.compliant ?? true) ? '✅ COMPLIANT' : '❌ NON-COMPLIANT'}
+- **Built-in Policy Violations**: ${result.violations.length}
+- **Manual Policy Violations**: ${manualPolicyResult?.violationsCount || 0}
+- **Total Critical Violations**: ${result.violations.filter(v => v.severity === 'critical').length + (manualPolicyResult?.summary.critical || 0)}
+- **Total High Severity**: ${result.violations.filter(v => v.severity === 'high').length + (manualPolicyResult?.summary.high || 0)}
+- **Total Medium Severity**: ${result.violations.filter(v => v.severity === 'medium').length + (manualPolicyResult?.summary.medium || 0)}
 - **Auto-Fixed Violations**: ${result.fixedResources?.length || 0}
 
 ## Policy Framework Applied
@@ -172,9 +489,9 @@ ${policies.map(policy => `### ${policy.replace(/_/g, ' ').toUpperCase()}
 - **Remediation**: ${this.getRemediationGuidance(policy)}
 `).join('\n')}
 
-## Violations Found
+## Built-in Policy Violations
 
-${result.violations.length === 0 ? '✅ No policy violations found. Your architecture is compliant!' : 
+${result.violations.length === 0 ? '✅ No built-in policy violations found!' : 
 result.violations.map(violation => `### ${violation.policy.replace(/_/g, ' ')} - ${violation.severity.toUpperCase()}
 
 - **Resource**: ${violation.resource}
@@ -182,6 +499,19 @@ result.violations.map(violation => `### ${violation.policy.replace(/_/g, ' ')} -
 - **Impact**: ${this.getViolationImpact(violation.severity)}
 - **Remediation**: ${violation.remediation}
 - **Status**: ${result.fixedResources?.some(f => f.resourceName === violation.resource && f.policy === violation.policy) ? '🔧 AUTO-FIXED' : '⚠️ REQUIRES MANUAL ATTENTION'}
+`).join('\n')}
+
+## Manual Policy Violations
+
+${!manualPolicyResult || manualPolicyResult.violationsCount === 0 ? '✅ No manual policy violations found!' : 
+manualPolicyResult.violations.map(violation => `### ${violation.policyName} - ${violation.severity.toUpperCase()}
+
+- **Resource**: ${violation.resource} (${violation.resourceType})
+- **Issue**: ${violation.description}
+- **Current Value**: \`${JSON.stringify(violation.currentValue)}\`
+- **Expected Value**: \`${JSON.stringify(violation.expectedValue)}\`
+- **Impact**: ${this.getViolationImpact(violation.severity)}
+- **Status**: ${manualPolicyResult.appliedFixes?.some(f => f.property === violation.fix.property) ? '🔧 AUTO-FIXED' : '⚠️ REQUIRES MANUAL ATTENTION'}
 `).join('\n')}
 
 ## Auto-Applied Fixes

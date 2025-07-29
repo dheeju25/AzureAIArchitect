@@ -1,0 +1,24 @@
+{
+  "id": "comp-001-required-tags",
+  "name": "Required Resource Tags",
+  "category": "compliance",
+  "description": "All resources must have required tags for compliance and governance",
+  "severity": "high",
+  "resourceTypes": ["*"],
+  "conditions": {
+    "property": "tags.Environment",
+    "operator": "notExists",
+    "value": null
+  },
+  "fix": {
+    "action": "set",
+    "property": "tags.Environment",
+    "value": "Production"
+  },
+  "bicepModification": {
+    "template": "// Add required tags to all resources\ntags: {\n  Environment: 'Production'\n  CostCenter: '12345'\n  Owner: 'IT-Team'\n  Project: 'AzureAIArchitect'\n}",
+    "parameters": ["environment", "costCenter", "owner", "project"]
+  },
+  "enabled": true,
+  "tags": ["compliance", "tagging", "governance"]
+}
