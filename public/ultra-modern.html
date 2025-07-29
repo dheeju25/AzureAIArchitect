@@ -551,18 +551,223 @@
             margin-bottom: var(--space-6);
         }
         
-        /* Bento Grid for Agents */
-        .agents-bento {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            grid-template-rows: auto auto auto;
-            gap: var(--space-4);
+        /* Agent Communication Flow Layout */
+        .agents-flow {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: var(--space-8);
+            padding: var(--space-6);
+        }
+        
+        .orchestrator-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 10;
         }
         
         .orchestrator-card {
-            grid-column: 1 / -1;
-            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(29, 78, 216, 0.1));
-            border: 1px solid rgba(59, 130, 246, 0.2);
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(29, 78, 216, 0.15));
+            border: 2px solid rgba(59, 130, 246, 0.3);
+            min-width: 300px;
+            position: relative;
+        }
+        
+        .orchestrator-card::after {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, var(--primary-400), var(--primary-600), var(--primary-400));
+            border-radius: var(--radius-xl);
+            z-index: -1;
+            animation: orchestrator-glow 3s ease-in-out infinite;
+        }
+        
+        @keyframes orchestrator-glow {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 0.8; }
+        }
+        
+        .agents-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--space-6);
+            position: relative;
+        }
+        
+        /* Enhanced Communication Effects */
+        .communication-lines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 5;
+            overflow: hidden;
+        }
+        
+        /* Particle Effect */
+        .comm-particle {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        .comm-particle.request {
+            background: radial-gradient(circle, #60a5fa, #3b82f6);
+            box-shadow: 0 0 12px #3b82f6, 0 0 24px #3b82f6;
+        }
+        
+        .comm-particle.response {
+            background: radial-gradient(circle, #4ade80, #22c55e);
+            box-shadow: 0 0 12px #22c55e, 0 0 24px #22c55e;
+        }
+        
+        /* Glowing Trail Effect */
+        .comm-trail {
+            position: absolute;
+            height: 4px;
+            border-radius: 2px;
+            pointer-events: none;
+            transform-origin: left center;
+        }
+        
+        .comm-trail.request {
+            background: linear-gradient(90deg, transparent, #3b82f6, #60a5fa, transparent);
+            box-shadow: 0 0 8px #3b82f6;
+        }
+        
+        .comm-trail.response {
+            background: linear-gradient(90deg, transparent, #22c55e, #4ade80, transparent);
+            box-shadow: 0 0 8px #22c55e;
+        }
+        
+        /* Pulsing Connection Indicators */
+        .agent-card::before {
+            content: '';
+            position: absolute;
+            top: -3px;
+            left: -3px;
+            right: -3px;
+            bottom: -3px;
+            border-radius: var(--radius-xl);
+            background: linear-gradient(45deg, transparent, var(--primary-400), transparent);
+            opacity: 0;
+            z-index: -1;
+            transition: opacity 0.3s ease;
+        }
+        
+        .agent-card.communicating::before {
+            opacity: 0.6;
+            animation: comm-glow 1.5s ease-in-out;
+        }
+        
+        .orchestrator-card.broadcasting::before {
+            background: linear-gradient(45deg, #3b82f6, #60a5fa, #3b82f6);
+            animation: orchestrator-broadcast 2s ease-in-out;
+        }
+        
+        /* Sound Wave Effect */
+        .sound-wave {
+            position: absolute;
+            border: 2px solid;
+            border-radius: 50%;
+            pointer-events: none;
+            opacity: 0;
+        }
+        
+        .sound-wave.request {
+            border-color: #3b82f6;
+            animation: sound-wave-expand 1.5s ease-out forwards;
+        }
+        
+        .sound-wave.response {
+            border-color: #22c55e;
+            animation: sound-wave-expand 1.5s ease-out forwards;
+        }
+        
+        @keyframes comm-glow {
+            0%, 100% { 
+                opacity: 0;
+                transform: scale(1);
+            }
+            50% { 
+                opacity: 0.8;
+                transform: scale(1.05);
+            }
+        }
+        
+        @keyframes orchestrator-broadcast {
+            0% { 
+                opacity: 0;
+                transform: scale(1);
+            }
+            50% { 
+                opacity: 1;
+                transform: scale(1.1);
+            }
+            100% { 
+                opacity: 0;
+                transform: scale(1);
+            }
+        }
+        
+        @keyframes sound-wave-expand {
+            0% {
+                width: 20px;
+                height: 20px;
+                opacity: 0.8;
+            }
+            100% {
+                width: 100px;
+                height: 100px;
+                opacity: 0;
+            }
+        }
+        
+        @keyframes particle-travel {
+            0% {
+                opacity: 0;
+                transform: scale(0.5);
+            }
+            10% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            90% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: scale(0.5);
+            }
+        }
+        
+        @keyframes trail-expand {
+            0% {
+                width: 0;
+                opacity: 0;
+            }
+            30% {
+                opacity: 1;
+            }
+            70% {
+                opacity: 1;
+            }
+            100% {
+                width: var(--trail-length, 200px);
+                opacity: 0;
+            }
         }
         
         .agent-card {
@@ -1281,92 +1486,102 @@
                 </div>
                 <div class="progress-label" id="progressLabel">Ready to process...</div>
                 
-                <!-- Agents Bento Grid -->
-                <div class="agents-bento">
-                    <!-- Orchestrator Agent - Full Width -->
-                    <div class="agent-card pending orchestrator-card" id="orchestrator-card">
-                        <div class="agent-header">
-                            <div class="agent-info">
-                                <div class="agent-icon">
-                                    <i data-lucide="command" size="20"></i>
+                <!-- Agent Communication Flow -->
+                <div class="agents-flow">
+                    <!-- Orchestrator Section -->
+                    <div class="orchestrator-section">
+                        <div class="agent-card pending orchestrator-card" id="orchestrator-card">
+                            <div class="agent-header">
+                                <div class="agent-info">
+                                    <div class="agent-icon">
+                                        <i data-lucide="command" size="20"></i>
+                                    </div>
+                                    <div class="agent-title">Orchestrator</div>
                                 </div>
-                                <div class="agent-title">Orchestrator</div>
+                                <div class="agent-status-badge pending">Pending</div>
                             </div>
-                            <div class="agent-status-badge pending">Pending</div>
+                            <div class="agent-progress-bar">
+                                <div class="agent-progress-fill"></div>
+                            </div>
+                            <div class="agent-message">Coordinating diagram processing pipeline</div>
+                            <div class="agent-data"></div>
                         </div>
-                        <div class="agent-progress-bar">
-                            <div class="agent-progress-fill"></div>
-                        </div>
-                        <div class="agent-message">Coordinating diagram processing pipeline</div>
-                        <div class="agent-data"></div>
                     </div>
                     
-                    <div class="agent-card pending" id="analyzer-card">
-                        <div class="agent-header">
-                            <div class="agent-info">
-                                <div class="agent-icon">
-                                    <i data-lucide="search" size="20"></i>
-                                </div>
-                                <div class="agent-title">Analyzer</div>
-                            </div>
-                            <div class="agent-status-badge pending">Pending</div>
-                        </div>
-                        <div class="agent-progress-bar">
-                            <div class="agent-progress-fill"></div>
-                        </div>
-                        <div class="agent-message">Extract architecture components</div>
-                        <div class="agent-data"></div>
+                    <!-- Communication Lines Container -->
+                    <div class="communication-lines" id="communicationLines">
+                        <!-- SVG lines will be dynamically created here -->
                     </div>
                     
-                    <div class="agent-card pending" id="policy-card">
-                        <div class="agent-header">
-                            <div class="agent-info">
-                                <div class="agent-icon">
-                                    <i data-lucide="shield-check" size="20"></i>
+                    <!-- Worker Agents Grid -->
+                    <div class="agents-grid">
+                        <div class="agent-card pending" id="analyzer-card">
+                            <div class="agent-header">
+                                <div class="agent-info">
+                                    <div class="agent-icon">
+                                        <i data-lucide="search" size="20"></i>
+                                    </div>
+                                    <div class="agent-title">Analyzer</div>
                                 </div>
-                                <div class="agent-title">Policy</div>
+                                <div class="agent-status-badge pending">Pending</div>
                             </div>
-                            <div class="agent-status-badge pending">Pending</div>
+                            <div class="agent-progress-bar">
+                                <div class="agent-progress-fill"></div>
+                            </div>
+                            <div class="agent-message">Extract architecture components</div>
+                            <div class="agent-data"></div>
                         </div>
-                        <div class="agent-progress-bar">
-                            <div class="agent-progress-fill"></div>
-                        </div>
-                        <div class="agent-message">Validate compliance policies</div>
-                        <div class="agent-data"></div>
-                    </div>
-                    
-                    <div class="agent-card pending" id="cost-card">
-                        <div class="agent-header">
-                            <div class="agent-info">
-                                <div class="agent-icon">
-                                    <i data-lucide="dollar-sign" size="20"></i>
+                        
+                        <div class="agent-card pending" id="policy-card">
+                            <div class="agent-header">
+                                <div class="agent-info">
+                                    <div class="agent-icon">
+                                        <i data-lucide="shield-check" size="20"></i>
+                                    </div>
+                                    <div class="agent-title">Policy</div>
                                 </div>
-                                <div class="agent-title">Cost</div>
+                                <div class="agent-status-badge pending">Pending</div>
                             </div>
-                            <div class="agent-status-badge pending">Pending</div>
+                            <div class="agent-progress-bar">
+                                <div class="agent-progress-fill"></div>
+                            </div>
+                            <div class="agent-message">Validate compliance policies</div>
+                            <div class="agent-data"></div>
                         </div>
-                        <div class="agent-progress-bar">
-                            <div class="agent-progress-fill"></div>
-                        </div>
-                        <div class="agent-message">Optimize resource costs</div>
-                        <div class="agent-data"></div>
-                    </div>
-                    
-                    <div class="agent-card pending" id="generator-card">
-                        <div class="agent-header">
-                            <div class="agent-info">
-                                <div class="agent-icon">
-                                    <i data-lucide="settings" size="20"></i>
+                        
+                        <div class="agent-card pending" id="cost-card">
+                            <div class="agent-header">
+                                <div class="agent-info">
+                                    <div class="agent-icon">
+                                        <i data-lucide="dollar-sign" size="20"></i>
+                                    </div>
+                                    <div class="agent-title">Cost</div>
                                 </div>
-                                <div class="agent-title">Generator</div>
+                                <div class="agent-status-badge pending">Pending</div>
                             </div>
-                            <div class="agent-status-badge pending">Pending</div>
+                            <div class="agent-progress-bar">
+                                <div class="agent-progress-fill"></div>
+                            </div>
+                            <div class="agent-message">Optimize resource costs</div>
+                            <div class="agent-data"></div>
                         </div>
-                        <div class="agent-progress-bar">
-                            <div class="agent-progress-fill"></div>
+                        
+                        <div class="agent-card pending" id="generator-card">
+                            <div class="agent-header">
+                                <div class="agent-info">
+                                    <div class="agent-icon">
+                                        <i data-lucide="settings" size="20"></i>
+                                    </div>
+                                    <div class="agent-title">Generator</div>
+                                </div>
+                                <div class="agent-status-badge pending">Pending</div>
+                            </div>
+                            <div class="agent-progress-bar">
+                                <div class="agent-progress-fill"></div>
+                            </div>
+                            <div class="agent-message">Generate Bicep templates</div>
+                            <div class="agent-data"></div>
                         </div>
-                        <div class="agent-message">Generate Bicep templates</div>
-                        <div class="agent-data"></div>
                     </div>
                 </div>
             </section>
@@ -1515,6 +1730,7 @@
                 this.initializeUI();
                 this.connectWebSocket();
                 this.initializeChat();
+                this.initializeCommunicationLines();
             }
             
             initializeIcons() {
@@ -1550,6 +1766,165 @@
                         btn.style.transform = 'translateY(0) scale(1)';
                     });
                 });
+            }
+            
+            initializeCommunicationLines() {
+                // Create SVG container for communication lines
+                const linesContainer = document.getElementById('communicationLines');
+                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                svg.style.position = 'absolute';
+                svg.style.top = '0';
+                svg.style.left = '0';
+                svg.style.width = '100%';
+                svg.style.height = '100%';
+                svg.style.pointerEvents = 'none';
+                svg.style.zIndex = '1';
+                
+                linesContainer.appendChild(svg);
+                this.communicationSvg = svg;
+            }
+            
+            showCommunication(fromAgent, toAgent, type = 'request') {
+                // Get positions of the agent cards
+                const fromCard = document.getElementById(this.agentMapping[fromAgent]);
+                const toCard = document.getElementById(this.agentMapping[toAgent]);
+                
+                if (!fromCard || !toCard) return;
+                
+                const fromRect = fromCard.getBoundingClientRect();
+                const toRect = toCard.getBoundingClientRect();
+                const containerRect = document.getElementById('communicationLines').getBoundingClientRect();
+                
+                // Calculate relative positions
+                const fromX = fromRect.left + fromRect.width / 2 - containerRect.left;
+                const fromY = fromRect.top + fromRect.height / 2 - containerRect.top;
+                const toX = toRect.left + toRect.width / 2 - containerRect.left;
+                const toY = toRect.top + toRect.height / 2 - containerRect.top;
+                
+                // Add glow effect to cards
+                fromCard.classList.add('communicating');
+                toCard.classList.add('communicating');
+                
+                // Add broadcasting effect to orchestrator
+                if (fromAgent === 'orchestrator') {
+                    fromCard.classList.add('broadcasting');
+                }
+                
+                // Create sound wave effect at source
+                this.createSoundWave(fromX, fromY, type);
+                
+                // Create particle trail effect
+                this.createParticleTrail(fromX, fromY, toX, toY, type);
+                
+                // Create multiple glowing particles
+                for (let i = 0; i < 5; i++) {
+                    setTimeout(() => {
+                        this.createTravelingParticle(fromX, fromY, toX, toY, type);
+                    }, i * 200);
+                }
+                
+                // Clean up effects
+                setTimeout(() => {
+                    fromCard.classList.remove('communicating', 'broadcasting');
+                    toCard.classList.remove('communicating');
+                }, 2000);
+            }
+            
+            createSoundWave(x, y, type) {
+                const container = document.getElementById('communicationLines');
+                const wave = document.createElement('div');
+                wave.className = `sound-wave ${type}`;
+                wave.style.left = `${x - 10}px`;
+                wave.style.top = `${y - 10}px`;
+                wave.style.width = '20px';
+                wave.style.height = '20px';
+                
+                container.appendChild(wave);
+                
+                // Remove after animation
+                setTimeout(() => {
+                    if (wave.parentNode) {
+                        wave.parentNode.removeChild(wave);
+                    }
+                }, 1500);
+            }
+            
+            createParticleTrail(fromX, fromY, toX, toY, type) {
+                const container = document.getElementById('communicationLines');
+                const trail = document.createElement('div');
+                trail.className = `comm-trail ${type}`;
+                
+                // Calculate angle and length
+                const angle = Math.atan2(toY - fromY, toX - fromX);
+                const length = Math.sqrt((toX - fromX) ** 2 + (toY - fromY) ** 2);
+                
+                trail.style.left = `${fromX}px`;
+                trail.style.top = `${fromY - 2}px`;
+                trail.style.width = '0px';
+                trail.style.transform = `rotate(${angle}rad)`;
+                trail.style.animation = 'trail-expand 1.5s ease-out forwards';
+                trail.style.setProperty('--trail-length', `${length}px`);
+                
+                container.appendChild(trail);
+                
+                // Remove after animation
+                setTimeout(() => {
+                    if (trail.parentNode) {
+                        trail.parentNode.removeChild(trail);
+                    }
+                }, 1500);
+            }
+            
+            createTravelingParticle(fromX, fromY, toX, toY, type) {
+                const container = document.getElementById('communicationLines');
+                const particle = document.createElement('div');
+                particle.className = `comm-particle ${type}`;
+                
+                // Start position
+                particle.style.left = `${fromX - 4}px`;
+                particle.style.top = `${fromY - 4}px`;
+                
+                container.appendChild(particle);
+                
+                // Animate to destination
+                const animation = particle.animate([
+                    { 
+                        left: `${fromX - 4}px`, 
+                        top: `${fromY - 4}px`,
+                        transform: 'scale(0.5)',
+                        opacity: 0
+                    },
+                    { 
+                        left: `${fromX + (toX - fromX) * 0.1 - 4}px`, 
+                        top: `${fromY + (toY - fromY) * 0.1 - 4}px`,
+                        transform: 'scale(1)',
+                        opacity: 1,
+                        offset: 0.1
+                    },
+                    { 
+                        left: `${fromX + (toX - fromX) * 0.9 - 4}px`, 
+                        top: `${fromY + (toY - fromY) * 0.9 - 4}px`,
+                        transform: 'scale(1)',
+                        opacity: 1,
+                        offset: 0.9
+                    },
+                    { 
+                        left: `${toX - 4}px`, 
+                        top: `${toY - 4}px`,
+                        transform: 'scale(0.5)',
+                        opacity: 0
+                    }
+                ], {
+                    duration: 1200,
+                    easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+                });
+                
+                // Remove after animation
+                setTimeout(() => {
+                    if (particle.parentNode) {
+                        particle.parentNode.removeChild(particle);
+                    }
+                }, 1200);
             }
             
             connectWebSocket() {
@@ -1784,6 +2159,17 @@
                     // Show error modal instead of processing tile error
                     this.showErrorModal(event.message);
                     return;
+                }
+                
+                // Show communication visualization for agent interactions
+                if (event.agent !== 'orchestrator' && event.status === 'starting') {
+                    // Show orchestrator sending request to agent
+                    this.showCommunication('orchestrator', event.agent, 'request');
+                } else if (event.agent !== 'orchestrator' && event.status === 'completed') {
+                    // Show agent sending response back to orchestrator
+                    setTimeout(() => {
+                        this.showCommunication(event.agent, 'orchestrator', 'response');
+                    }, 300);
                 }
                 
                 // Always update the agent status (including orchestrator)
