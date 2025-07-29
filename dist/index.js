@@ -112,35 +112,42 @@ app.post('/api/process-diagram', upload_1.upload.single('diagram'), async (req, 
             fileName: req.file.originalname,
             userRequirements
         };
-        // Process the diagram through the orchestrator
-        const result = await orchestrator.processArchitectureDiagram(request);
-        // Clean up uploaded file
-        try {
-            await fs.unlink(req.file.path);
-        }
-        catch (error) {
-            logger_1.logger.warn('Failed to clean up uploaded file', { traceId, error });
-        }
+        // Return trace ID immediately and start processing asynchronously
         res.json({
             success: true,
-            traceId: result.traceId,
-            processingTime: result.processingTime,
-            analysis: {
-                resourceCount: result.analysis.resources.length,
-                pattern: result.analysis.architecture.pattern,
-                complexity: result.analysis.architecture.complexity
-            },
-            compliance: {
-                compliant: result.complianceReport.compliant,
-                violationCount: result.complianceReport.violations.length
-            },
-            cost: {
-                estimatedMonthlyCost: result.costOptimization.estimatedMonthlyCost,
-                potentialSavings: result.costOptimization.potentialSavings
-            },
-            downloadUrl: result.downloadUrl,
+            traceId,
+            message: 'Processing started',
             timestamp: new Date().toISOString()
         });
+        // Process asynchronously
+        try {
+            const result = await orchestrator.processArchitectureDiagram(request, traceId);
+            // Clean up uploaded file
+            try {
+                await fs.unlink(req.file.path);
+            }
+            catch (error) {
+                logger_1.logger.warn('Failed to clean up uploaded file', { traceId, error });
+            }
+            logger_1.logger.info('Async processing completed successfully', {
+                traceId: result.traceId,
+                processingTime: result.processingTime,
+                downloadUrl: result.downloadUrl
+            });
+        }
+        catch (asyncError) {
+            logger_1.logger.error('Async diagram processing failed', {
+                traceId,
+                error: asyncError instanceof Error ? asyncError.message : 'Unknown error'
+            });
+            // Clean up uploaded file on error
+            try {
+                await fs.unlink(req.file.path);
+            }
+            catch (cleanupError) {
+                logger_1.logger.warn('Failed to clean up uploaded file after error', { traceId, error: cleanupError });
+            }
+        }
     }
     catch (error) {
         logger_1.logger.error('Diagram processing failed', {

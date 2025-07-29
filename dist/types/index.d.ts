@@ -49,6 +49,8 @@ export interface PolicyComplianceResult {
     compliant: boolean;
     violations: PolicyViolation[];
     recommendations: string[];
+    fixedResources?: any[];
+    policyReport?: string;
 }
 export interface PolicyViolation {
     resource: string;
@@ -61,6 +63,7 @@ export interface CostOptimization {
     estimatedMonthlyCost: number;
     optimizations: CostOptimizationSuggestion[];
     potentialSavings: number;
+    costReport?: string;
 }
 export interface CostOptimizationSuggestion {
     resource: string;

@@ -15,8 +15,8 @@ class OrchestratorAgent {
         this.costAgent = new costOptimization_1.CostOptimizationAgent();
         this.generatorAgent = new generator_1.GeneratorAgent();
     }
-    async processArchitectureDiagram(request) {
-        const { span, traceId } = await tracing_1.tracingService.startTrace('orchestrator.processArchitectureDiagram');
+    async processArchitectureDiagram(request, providedTraceId) {
+        const { span, traceId } = await tracing_1.tracingService.startTrace('orchestrator.processArchitectureDiagram', providedTraceId);
         const startTime = Date.now();
         const wsService = websocket_1.WebSocketService.getInstance();
         try {
@@ -92,7 +92,7 @@ class OrchestratorAgent {
             wsService.emitAgentComplete(traceId, 'generator', 'generateFiles');
             // Step 5: Package files for download
             wsService.emitAgentProgress(traceId, 'generator', 'packageFiles', 90, 'packaging files for download');
-            const downloadUrl = await tracing_1.tracingService.traceAgentCall('generator', 'packageFiles', traceId, { traceId }, () => this.generatorAgent.packageFiles(generatedFiles, traceId));
+            const downloadUrl = await tracing_1.tracingService.traceAgentCall('generator', 'packageFiles', traceId, { traceId }, () => this.generatorAgent.packageFiles(generatedFiles, traceId, complianceReport, costOptimization));
             wsService.emitOverallProgress(traceId, 100, 'processing completed');
             const processingTime = Date.now() - startTime;
             const result = {
@@ -139,11 +139,14 @@ class OrchestratorAgent {
         }
         catch (error) {
             const processingTime = Date.now() - startTime;
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             logger_1.logger.error('Architecture diagram processing failed', {
                 traceId,
-                error: error instanceof Error ? error.message : 'Unknown error',
+                error: errorMessage,
                 processingTime
             });
+            // Emit error to WebSocket so UI can display it
+            wsService.emitAgentError(traceId, 'orchestrator', 'processing', errorMessage);
             await tracing_1.tracingService.endTrace(span, traceId, 'orchestrator.processArchitectureDiagram', 'failed', error instanceof Error ? error : new Error('Unknown error'));
             throw error;
         }

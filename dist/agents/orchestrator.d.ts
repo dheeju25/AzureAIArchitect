@@ -24,7 +24,7 @@ export declare class OrchestratorAgent {
     private costAgent;
     private generatorAgent;
     constructor();
-    processArchitectureDiagram(request: OrchestrationRequest): Promise<OrchestrationResult>;
+    processArchitectureDiagram(request: OrchestrationRequest, providedTraceId?: string): Promise<OrchestrationResult>;
     getProcessingStatus(traceId: string): Promise<any>;
 }
 //# sourceMappingURL=orchestrator.d.ts.map

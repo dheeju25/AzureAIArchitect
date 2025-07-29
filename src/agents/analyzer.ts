@@ -36,8 +36,8 @@ export class AnalyzerAgent {
         dimensions: processedFile.metadata.dimensions
       });
 
-      // Validate if diagram contains Azure resources before processing (temporarily disabled for testing)
-      // await this.validateAzureDiagram(processedFile, traceId);
+      // Validate if diagram contains Azure resources before processing
+      await this.validateAzureDiagram(processedFile, traceId);
 
       // Convert processed image to base64 for AI processing
       const base64Image = processedFile.content.toString('base64');

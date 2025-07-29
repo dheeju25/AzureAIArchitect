@@ -1032,6 +1032,113 @@
             to { opacity: 1; transform: scale(1); }
         }
         
+        /* Error Modal Styles */
+        .error-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all var(--transition-normal);
+        }
+        
+        .error-modal.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .error-modal-content {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-2xl);
+            padding: var(--space-8);
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+            box-shadow: var(--shadow-2xl);
+            transform: scale(0.9) translateY(20px);
+            transition: all var(--transition-normal);
+        }
+        
+        .error-modal.show .error-modal-content {
+            transform: scale(1) translateY(0);
+        }
+        
+        .error-modal-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto var(--space-4);
+            background: linear-gradient(135deg, var(--error-500), var(--error-600));
+            border-radius: var(--radius-full);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: var(--font-size-3xl);
+        }
+        
+        .error-modal-title {
+            font-size: var(--font-size-2xl);
+            font-weight: 700;
+            color: white;
+            margin-bottom: var(--space-4);
+        }
+        
+        .error-modal-message {
+            font-size: var(--font-size-lg);
+            color: rgba(255, 255, 255, 0.9);
+            line-height: 1.6;
+            margin-bottom: var(--space-6);
+        }
+        
+        .error-modal-actions {
+            display: flex;
+            gap: var(--space-4);
+            justify-content: center;
+        }
+        
+        .btn-modal {
+            padding: var(--space-3) var(--space-6);
+            border-radius: var(--radius-lg);
+            font-size: var(--font-size-base);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+        
+        .btn-modal-primary {
+            background: linear-gradient(135deg, var(--primary-500), var(--primary-600));
+            color: white;
+        }
+        
+        .btn-modal-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .btn-modal-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .btn-modal-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
         /* Utility Classes */
         .hidden { display: none !important; }
         .visible { display: block !important; }
@@ -1338,6 +1445,27 @@
                 </div>
             </div>
         </section>
+        
+        <!-- Error Modal -->
+        <div class="error-modal" id="errorModal">
+            <div class="error-modal-content">
+                <div class="error-modal-icon">
+                    <i data-lucide="alert-triangle" size="32"></i>
+                </div>
+                <h3 class="error-modal-title">Upload Error</h3>
+                <p class="error-modal-message" id="errorModalMessage"></p>
+                <div class="error-modal-actions">
+                    <button class="btn-modal btn-modal-primary" onclick="closeErrorModal()">
+                        <i data-lucide="check" size="16"></i>
+                        Got it
+                    </button>
+                    <button class="btn-modal btn-modal-secondary" onclick="closeErrorModal(); document.getElementById('diagramFile').click();">
+                        <i data-lucide="upload" size="16"></i>
+                        Try Again
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -1608,6 +1736,16 @@
             handleProcessingUpdate(event) {
                 console.log('Processing update:', event);
                 
+                // Check for validation errors that should show in popup
+                if (event.status === 'error' && event.agent === 'orchestrator' && event.step === 'processing') {
+                    // Hide processing UI
+                    document.getElementById('progressRing').style.display = 'none';
+                    
+                    // Show error modal instead of processing tile error
+                    this.showErrorModal(event.message);
+                    return;
+                }
+                
                 if (event.agent === 'orchestrator') {
                     this.updateOverallProgress(event.progress, event.message);
                     
@@ -1785,6 +1923,19 @@
                 this.addChatMessage('assistant', response);
             }
             
+            showErrorModal(message) {
+                const modal = document.getElementById('errorModal');
+                const messageEl = document.getElementById('errorModalMessage');
+                
+                messageEl.textContent = message;
+                modal.classList.add('show');
+                
+                // Reinitialize icons
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }
+            
             showNotification(message, type = 'info') {
                 // Create notification element
                 const notification = document.createElement('div');
@@ -1850,6 +2001,27 @@
                 lucide.createIcons();
             }
         }
+        
+        // Modal control functions
+        function closeErrorModal() {
+            const modal = document.getElementById('errorModal');
+            modal.classList.remove('show');
+        }
+        
+        // Close modal when clicking outside
+        document.addEventListener('click', (e) => {
+            const modal = document.getElementById('errorModal');
+            if (e.target === modal) {
+                closeErrorModal();
+            }
+        });
+        
+        // Close modal with Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeErrorModal();
+            }
+        });
         
         // Initialize the application
         document.addEventListener('DOMContentLoaded', () => {

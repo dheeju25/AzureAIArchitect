@@ -5,7 +5,7 @@ export declare class GeneratorAgent {
     private outputDir;
     constructor();
     generateFiles(analysis: DiagramAnalysis, complianceReport: PolicyComplianceResult, costOptimization: CostOptimization, userRequirements?: any, traceId?: string): Promise<GeneratedFiles>;
-    packageFiles(files: GeneratedFiles, traceId: string): Promise<string>;
+    packageFiles(files: GeneratedFiles, traceId: string, complianceReport?: PolicyComplianceResult, costOptimization?: CostOptimization): Promise<string>;
     private callAzureAIFoundryAgent;
     private generateBicepContent;
     private generateBicepResource;
@@ -13,6 +13,9 @@ export declare class GeneratorAgent {
     private generatePipelineContent;
     private generateParametersContent;
     private generateReadmeContent;
+    private generateSummaryReport;
+    private generateFixedResourcesReport;
+    private getSecurityBenefits;
     private parseGenerationResult;
 }
 //# sourceMappingURL=generator.d.ts.map

@@ -7,5 +7,6 @@ export declare class AnalyzerAgent {
     private callAzureAIFoundryAgent;
     private parseAnalysisResult;
     private getMimeType;
+    private validateAzureDiagram;
 }
 //# sourceMappingURL=analyzer.d.ts.map

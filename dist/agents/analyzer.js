@@ -28,6 +28,8 @@ class AnalyzerAgent {
                 hasExtractedData: !!processedFile.extractedData,
                 dimensions: processedFile.metadata.dimensions
             });
+            // Validate if diagram contains Azure resources before processing
+            await this.validateAzureDiagram(processedFile, traceId);
             // Convert processed image to base64 for AI processing
             const base64Image = processedFile.content.toString('base64');
             const mimeType = 'image/png'; // All files are converted to PNG for consistent processing
@@ -201,6 +203,103 @@ class AnalyzerAgent {
             'webp': 'image/webp'
         };
         return mimeTypes[extension || ''] || 'image/png';
+    }
+    async validateAzureDiagram(processedFile, traceId) {
+        logger_1.logger.info('Validating diagram for Azure content', { traceId, format: processedFile.format });
+        // Define Azure-related keywords and patterns
+        const azureKeywords = [
+            // Azure services
+            'azure', 'microsoft', 'storage account', 'app service', 'sql database', 'cosmos db',
+            'virtual machine', 'vm', 'virtual network', 'vnet', 'resource group', 'subscription',
+            'key vault', 'application insights', 'service bus', 'event hub', 'logic app',
+            'function app', 'container registry', 'kubernetes', 'aks', 'api management',
+            'cognitive services', 'bot service', 'notification hub', 'redis cache',
+            // Azure resource types
+            'microsoft.web', 'microsoft.sql', 'microsoft.storage', 'microsoft.compute',
+            'microsoft.network', 'microsoft.keyvault', 'microsoft.insights',
+            'microsoft.servicebus', 'microsoft.eventhub', 'microsoft.logic',
+            'microsoft.cognitiveservices', 'microsoft.botservice',
+            // Common Azure terminology
+            'bicep', 'arm template', 'resource manager', 'azure portal', 'azure cli',
+            'powershell', 'tenant', 'active directory', 'aad', 'rbac'
+        ];
+        // Define non-Azure keywords that indicate other cloud providers
+        const nonAzureKeywords = [
+            'aws', 'amazon', 'ec2', 's3', 'lambda', 'rds', 'dynamodb', 'cloudformation',
+            'gcp', 'google cloud', 'compute engine', 'cloud storage', 'bigquery',
+            'cloud functions', 'firestore', 'pub/sub', 'kubernetes engine', 'gke',
+            'docker', 'terraform', 'on-premise', 'on-premises', 'vmware',
+            'openstack', 'alibaba cloud', 'oracle cloud'
+        ];
+        let contentToValidate = '';
+        // Extract content based on file format
+        if (processedFile.extractedData) {
+            if (processedFile.format === 'drawio') {
+                // Extract text from Draw.io elements
+                const elements = processedFile.extractedData.elements || [];
+                contentToValidate = elements
+                    .map((element) => element.text || element.label || element.value || '')
+                    .join(' ')
+                    .toLowerCase();
+            }
+            else if (processedFile.format === 'vsdx') {
+                // Extract text from Visio shapes
+                const shapes = processedFile.extractedData.shapes || [];
+                contentToValidate = shapes
+                    .map((shape) => shape.text || shape.name || '')
+                    .join(' ')
+                    .toLowerCase();
+            }
+        }
+        // If no structured data, analyze filename and any metadata
+        if (!contentToValidate.trim()) {
+            contentToValidate = `${processedFile.metadata.originalName} ${JSON.stringify(processedFile.metadata)}`.toLowerCase();
+        }
+        logger_1.logger.info('Content extracted for validation', {
+            traceId,
+            contentLength: contentToValidate.length,
+            hasContent: contentToValidate.length > 0
+        });
+        // Check for Azure keywords
+        const azureMatches = azureKeywords.filter(keyword => contentToValidate.includes(keyword.toLowerCase()));
+        // Check for non-Azure keywords
+        const nonAzureMatches = nonAzureKeywords.filter(keyword => contentToValidate.includes(keyword.toLowerCase()));
+        logger_1.logger.info('Validation results', {
+            traceId,
+            azureMatches: azureMatches.length,
+            nonAzureMatches: nonAzureMatches.length,
+            foundAzureKeywords: azureMatches.slice(0, 5), // Log first 5 matches
+            foundNonAzureKeywords: nonAzureMatches.slice(0, 3) // Log first 3 matches
+        });
+        // Determine if diagram is Azure-related
+        const isAzureDiagram = azureMatches.length > 0;
+        const hasNonAzureContent = nonAzureMatches.length > 0;
+        // Throw error if not Azure-related
+        if (!isAzureDiagram) {
+            const errorMessage = hasNonAzureContent
+                ? `This diagram appears to be for ${nonAzureMatches[0].toUpperCase()} or other non-Azure platforms. AI Superman only processes Azure architecture diagrams. Please upload a diagram containing Azure services and resources.`
+                : 'This diagram does not appear to contain Azure services or resources. AI Superman only processes Azure architecture diagrams. Please upload a diagram with Azure services like App Service, SQL Database, Storage Account, Virtual Machines, etc.';
+            logger_1.logger.warn('Non-Azure diagram rejected', {
+                traceId,
+                reason: hasNonAzureContent ? 'contains-non-azure-keywords' : 'no-azure-keywords-found',
+                fileName: processedFile.metadata.originalName
+            });
+            throw new Error(errorMessage);
+        }
+        // Warn if diagram contains mixed content but proceed since it has Azure content
+        if (hasNonAzureContent && isAzureDiagram) {
+            logger_1.logger.warn('Mixed content diagram detected', {
+                traceId,
+                azureMatches: azureMatches.length,
+                nonAzureMatches: nonAzureMatches.length,
+                message: 'Diagram contains both Azure and non-Azure content, proceeding with Azure analysis'
+            });
+        }
+        logger_1.logger.info('Azure diagram validation passed', {
+            traceId,
+            azureKeywordsFound: azureMatches.length,
+            validationResult: 'accepted'
+        });
     }
 }
 exports.AnalyzerAgent = AnalyzerAgent;

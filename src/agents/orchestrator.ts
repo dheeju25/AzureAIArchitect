@@ -238,12 +238,16 @@ export class OrchestratorAgent {
 
     } catch (error) {
       const processingTime = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
       logger.error('Architecture diagram processing failed', {
         traceId,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
         processingTime
       });
+
+      // Emit error to WebSocket so UI can display it
+      wsService.emitAgentError(traceId, 'orchestrator', 'processing', errorMessage);
 
       await tracingService.endTrace(
         span,
