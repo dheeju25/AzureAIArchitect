@@ -555,8 +555,14 @@
         .agents-bento {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            grid-template-rows: auto auto;
+            grid-template-rows: auto auto auto;
             gap: var(--space-4);
+        }
+        
+        .orchestrator-card {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(29, 78, 216, 0.1));
+            border: 1px solid rgba(59, 130, 246, 0.2);
         }
         
         .agent-card {
@@ -1000,6 +1006,11 @@
             
             .agents-bento {
                 grid-template-columns: 1fr;
+                grid-template-rows: repeat(5, auto);
+            }
+            
+            .orchestrator-card {
+                grid-column: 1;
             }
             
             .results-bento {
@@ -1221,7 +1232,7 @@
                         <div class="form-group">
                             <label for="targetRegion" class="form-label">Target Region</label>
                             <select id="targetRegion" name="targetRegion" class="form-select">
-                                <option value="East Europe">East Europe</option>
+                                <option value="West Europe">West Europe</option>
                                 <option value="North Europe">North Europe</option>
                             </select>
                         </div>
@@ -1272,6 +1283,24 @@
                 
                 <!-- Agents Bento Grid -->
                 <div class="agents-bento">
+                    <!-- Orchestrator Agent - Full Width -->
+                    <div class="agent-card pending orchestrator-card" id="orchestrator-card">
+                        <div class="agent-header">
+                            <div class="agent-info">
+                                <div class="agent-icon">
+                                    <i data-lucide="command" size="20"></i>
+                                </div>
+                                <div class="agent-title">Orchestrator</div>
+                            </div>
+                            <div class="agent-status-badge pending">Pending</div>
+                        </div>
+                        <div class="agent-progress-bar">
+                            <div class="agent-progress-fill"></div>
+                        </div>
+                        <div class="agent-message">Coordinating diagram processing pipeline</div>
+                        <div class="agent-data"></div>
+                    </div>
+                    
                     <div class="agent-card pending" id="analyzer-card">
                         <div class="agent-header">
                             <div class="agent-info">
@@ -1474,6 +1503,7 @@
                 this.socket = null;
                 this.currentTraceId = null;
                 this.agentMapping = {
+                    'orchestrator': 'orchestrator-card',
                     'analyzer': 'analyzer-card',
                     'policyCompliance': 'policy-card',
                     'costOptimization': 'cost-card',
@@ -1736,6 +1766,16 @@
             handleProcessingUpdate(event) {
                 console.log('Processing update:', event);
                 
+                // Debug orchestrator events specifically
+                if (event.agent === 'orchestrator') {
+                    console.log('🔥 ORCHESTRATOR EVENT:', {
+                        status: event.status,
+                        step: event.step,
+                        progress: event.progress,
+                        message: event.message
+                    });
+                }
+                
                 // Check for validation errors that should show in popup
                 if (event.status === 'error' && event.agent === 'orchestrator' && event.step === 'processing') {
                     // Hide processing UI
@@ -1746,15 +1786,24 @@
                     return;
                 }
                 
+                // Always update the agent status (including orchestrator)
+                this.updateAgentStatus(event.agent, event.status, event.progress, event.message, event.data);
+                
+                // Also update overall progress for orchestrator events
                 if (event.agent === 'orchestrator') {
                     this.updateOverallProgress(event.progress, event.message);
                     
-                    if (event.status === 'completed' && event.step === 'all-agents-completed') {
-                        this.displayResults(event.data);
-                        this.addChatMessage('assistant', '✅ Processing completed successfully! Your deployment files are ready.');
+                    // Handle final completion
+                    if (event.status === 'completed' && (event.step === 'all-agents-completed' || event.step === 'orchestration')) {
+                        console.log('🎯 FORCING ORCHESTRATOR COMPLETION');
+                        // Make sure orchestrator shows completed
+                        this.updateAgentStatus('orchestrator', 'completed', 100, 'All agents completed successfully', event.data);
+                        
+                        if (event.step === 'all-agents-completed') {
+                            this.displayResults(event.data);
+                            this.addChatMessage('assistant', '✅ Processing completed successfully! Your deployment files are ready.');
+                        }
                     }
-                } else {
-                    this.updateAgentStatus(event.agent, event.status, event.progress, event.message, event.data);
                 }
             }
             
@@ -1772,10 +1821,29 @@
             }
             
             updateAgentStatus(agentName, status, progress, message, data) {
+                // Debug orchestrator updates specifically
+                if (agentName === 'orchestrator') {
+                    console.log('🚀 UPDATING ORCHESTRATOR STATUS:', {
+                        agentName,
+                        status,
+                        progress,
+                        message,
+                        cardId: this.agentMapping[agentName]
+                    });
+                }
+                
                 const cardId = this.agentMapping[agentName];
-                if (!cardId) return;
+                if (!cardId) {
+                    console.log('❌ NO CARD ID FOUND FOR:', agentName, this.agentMapping);
+                    return;
+                }
                 
                 const card = document.getElementById(cardId);
+                if (!card) {
+                    console.log('❌ NO CARD ELEMENT FOUND FOR:', cardId);
+                    return;
+                }
+                
                 const statusBadge = card.querySelector('.agent-status-badge');
                 const progressFill = card.querySelector('.agent-progress-fill');
                 const messageEl = card.querySelector('.agent-message');
@@ -1783,6 +1851,9 @@
                 
                 // Update card class
                 card.className = `agent-card ${status}`;
+                if (agentName === 'orchestrator') {
+                    card.classList.add('orchestrator-card');
+                }
                 
                 // Update status badge
                 statusBadge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
@@ -1798,6 +1869,17 @@
                 if (data && Object.keys(data).length > 0) {
                     dataEl.innerHTML = this.formatAgentData(data);
                     dataEl.classList.add('show');
+                }
+                
+                // Debug final state for orchestrator
+                if (agentName === 'orchestrator') {
+                    console.log('🔍 ORCHESTRATOR FINAL STATE:', {
+                        cardClass: card.className,
+                        statusText: statusBadge.textContent,
+                        statusClass: statusBadge.className,
+                        progressWidth: progressFill.style.width,
+                        message: messageEl.textContent
+                    });
                 }
                 
                 // Add chat message for important updates

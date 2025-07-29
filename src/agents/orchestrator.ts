@@ -173,8 +173,6 @@ export class OrchestratorAgent {
         )
       );
 
-      wsService.emitAgentComplete(traceId, 'generator', 'generateFiles');
-
       // Step 5: Package files for download
       wsService.emitAgentProgress(traceId, 'generator', 'packageFiles', 90, 'packaging files for download');
       
@@ -186,6 +184,8 @@ export class OrchestratorAgent {
         () => this.generatorAgent.packageFiles(generatedFiles, traceId, complianceReport, costOptimization)
       );
 
+      // Complete generator agent after packaging
+      wsService.emitAgentComplete(traceId, 'generator', 'packageFiles');
       wsService.emitOverallProgress(traceId, 100, 'processing completed');
       
       const processingTime = Date.now() - startTime;
@@ -199,6 +199,17 @@ export class OrchestratorAgent {
         downloadUrl,
         processingTime
       };
+
+      // Mark orchestrator as completed
+      wsService.emitAgentComplete(traceId, 'orchestrator', 'orchestration', {
+        processingTime,
+        downloadUrl,
+        summary: {
+          resourceCount: analysis.resources.length,
+          compliant: complianceReport.compliant,
+          estimatedMonthlyCost: costOptimization.estimatedMonthlyCost
+        }
+      });
 
       // Emit final completion event
       wsService.emitProcessingUpdate({
