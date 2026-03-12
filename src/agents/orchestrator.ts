@@ -1,4 +1,17 @@
-import { Span } from '@opentelemetry/api';
+/**
+ * OrchestratorAgent
+ *
+ * The brain of the pipeline. Coordinates all agents in sequence,
+ * passes context between them, emits real-time WebSocket progress,
+ * and returns the final result.
+ *
+ * Agent execution order:
+ *   1. AnalyzerAgent      → DiagramAnalysis
+ *   2. PolicyCompliance   → ComplianceReport  (receives analysis)
+ *   3. CostOptimization   → CostReport        (receives analysis + compliance)
+ *   4. GeneratorAgent     → GeneratedFiles    (receives all three above)
+ *   5. Package + ZIP
+ */
 import { tracingService } from '../services/tracing';
 import { logger } from '../utils/logger';
 import { DiagramAnalysis, PolicyComplianceResult, CostOptimization, GeneratedFiles } from '../types';
@@ -9,295 +22,241 @@ import { GeneratorAgent } from './generator';
 import { WebSocketService } from '../services/websocket';
 
 export interface OrchestrationRequest {
-  diagramFile: Buffer;
-  fileName: string;
+  diagramFile:       Buffer;
+  fileName:          string;
   userRequirements?: {
-    targetRegion?: string;
-    budgetConstraint?: number;
-    complianceProfile?: string;
+    targetRegion?:            string;
+    budgetConstraint?:        number;
+    complianceProfile?:       string;
     scalabilityRequirements?: string;
   };
 }
 
 export interface OrchestrationResult {
-  traceId: string;
-  analysis: DiagramAnalysis;
+  traceId:          string;
+  analysis:         DiagramAnalysis;
   complianceReport: PolicyComplianceResult;
   costOptimization: CostOptimization;
-  generatedFiles: GeneratedFiles;
-  downloadUrl: string;
-  processingTime: number;
+  generatedFiles:   GeneratedFiles;
+  downloadUrl:      string;
+  processingTime:   number;
+  agentMetrics: {
+    analyzer:         { durationMs: number };
+    policyCompliance: { durationMs: number };
+    costOptimization: { durationMs: number };
+    generator:        { durationMs: number };
+  };
 }
 
 export class OrchestratorAgent {
-  private analyzerAgent: AnalyzerAgent;
-  private policyAgent: PolicyComplianceAgent;
-  private costAgent: CostOptimizationAgent;
+  private analyzerAgent:  AnalyzerAgent;
+  private policyAgent:    PolicyComplianceAgent;
+  private costAgent:      CostOptimizationAgent;
   private generatorAgent: GeneratorAgent;
 
   constructor() {
-    this.analyzerAgent = new AnalyzerAgent();
-    this.policyAgent = new PolicyComplianceAgent();
-    this.costAgent = new CostOptimizationAgent();
+    this.analyzerAgent  = new AnalyzerAgent();
+    this.policyAgent    = new PolicyComplianceAgent();
+    this.costAgent      = new CostOptimizationAgent();
     this.generatorAgent = new GeneratorAgent();
   }
 
-  async processArchitectureDiagram(request: OrchestrationRequest, providedTraceId?: string): Promise<OrchestrationResult> {
-    const { span, traceId } = await tracingService.startTrace('orchestrator.processArchitectureDiagram', providedTraceId);
+  async processArchitectureDiagram(
+    request:           OrchestrationRequest,
+    providedTraceId?:  string,
+  ): Promise<OrchestrationResult> {
+    const { span, traceId } = await tracingService.startTrace(
+      'orchestrator.processArchitectureDiagram',
+      providedTraceId,
+    );
     const startTime = Date.now();
-    const wsService = WebSocketService.getInstance();
+    const ws        = WebSocketService.getInstance();
+    const metrics   = { analyzer: 0, policyCompliance: 0, costOptimization: 0, generator: 0 };
+
+    const progress = (agent: string, pct: number, step: string, detail?: string) => {
+      ws.emitProcessingUpdate({
+        traceId, agent, status: 'running', step,
+        progress: pct, message: detail ?? step,
+        timestamp: new Date().toISOString(),
+      });
+    };
 
     try {
-      logger.info('Starting architecture diagram processing', {
-        traceId,
-        fileName: request.fileName,
-        fileSize: request.diagramFile.length
+      logger.info('OrchestratorAgent: pipeline starting', {
+        traceId, fileName: request.fileName,
       });
 
-      // Emit initial processing start event
-      wsService.emitOverallProgress(traceId, 0, 'initializing');
+      // ── Step 1: Analyze ───────────────────────────────────────────────
+      ws.emitOverallProgress(traceId, 5, 'analyzing diagram');
+      ws.emitAgentStart(traceId, 'analyzer', 'extractArchitecture');
 
-      span.setAttributes({
-        'request.fileName': request.fileName,
-        'request.fileSize': request.diagramFile.length,
-        'request.targetRegion': request.userRequirements?.targetRegion || 'not-specified',
-        'request.budgetConstraint': request.userRequirements?.budgetConstraint || 0
-      });
-
-      // Step 1: Analyze the diagram
-      wsService.emitAgentStart(traceId, 'analyzer', 'extractArchitecture');
-      wsService.emitOverallProgress(traceId, 10, 'analyzing diagram');
-      
-      const analysis = await tracingService.traceAgentCall(
-        'analyzer',
-        'extractArchitecture',
+      const t1 = Date.now();
+      const analysis = await this.analyzerAgent.analyzeDiagram(
+        request.diagramFile,
+        request.fileName,
         traceId,
-        { fileName: request.fileName, fileSize: request.diagramFile.length },
-        () => this.analyzerAgent.analyzeDiagram(request.diagramFile, request.fileName, traceId)
+        (step, pct, detail) => progress('analyzer', Math.round(pct * 0.25), step, detail),
       );
+      metrics.analyzer = Date.now() - t1;
 
-      wsService.emitAgentComplete(traceId, 'analyzer', 'extractArchitecture', {
+      ws.emitAgentComplete(traceId, 'analyzer', 'extractArchitecture', {
         resourceCount: analysis.resources.length,
-        pattern: analysis.architecture.pattern,
-        complexity: analysis.architecture.complexity
+        pattern:       analysis.architecture.pattern,
+        durationMs:    metrics.analyzer,
       });
 
-      logger.info('Diagram analysis completed', {
-        traceId,
-        resourceCount: analysis.resources.length,
-        dependencyCount: analysis.dependencies.length,
-        pattern: analysis.architecture.pattern
-      });
+      // ── Step 2: Compliance ───────────────────────────────────────────
+      ws.emitOverallProgress(traceId, 30, 'checking policy compliance');
+      ws.emitAgentStart(traceId, 'policyCompliance', 'validateCompliance');
 
-      // Step 2: Check policy compliance
-      wsService.emitAgentStart(traceId, 'policyCompliance', 'validateCompliance');
-      wsService.emitOverallProgress(traceId, 35, 'checking policy compliance');
-      
-      const complianceReport = await tracingService.traceAgentCall(
-        'policyCompliance',
-        'validateCompliance',
+      const t2 = Date.now();
+      const complianceReport = await this.policyAgent.validateCompliance(
+        analysis.resources,
+        request.userRequirements?.complianceProfile ?? 'Default',
         traceId,
-        { resources: analysis.resources, complianceProfile: request.userRequirements?.complianceProfile },
-        () => this.policyAgent.validateCompliance(
-          analysis.resources,
-          request.userRequirements?.complianceProfile,
-          traceId
-        )
+        (step, pct, detail) => progress('policyCompliance', 25 + Math.round(pct * 0.20), step, detail),
       );
+      metrics.policyCompliance = Date.now() - t2;
 
-      wsService.emitAgentComplete(traceId, 'policyCompliance', 'validateCompliance', {
-        compliant: complianceReport.compliant,
-        violationCount: complianceReport.violations.length
+      ws.emitAgentComplete(traceId, 'policyCompliance', 'validateCompliance', {
+        compliant:      complianceReport.compliant,
+        violationCount: complianceReport.violations.length,
+        durationMs:     metrics.policyCompliance,
       });
 
-      logger.info('Policy compliance check completed', {
-        traceId,
-        compliant: complianceReport.compliant,
-        violationCount: complianceReport.violations.length
-      });
+      // ── Step 3: Cost optimisation ────────────────────────────────────
+      ws.emitOverallProgress(traceId, 55, 'optimizing costs');
+      ws.emitAgentStart(traceId, 'costOptimization', 'optimizeCosts');
 
-      // Step 3: Optimize costs
-      wsService.emitAgentStart(traceId, 'costOptimization', 'optimizeCosts');
-      wsService.emitOverallProgress(traceId, 60, 'optimizing costs');
-      
-      const costOptimization = await tracingService.traceAgentCall(
-        'costOptimization',
-        'optimizeCosts',
+      const t3 = Date.now();
+      const costOptimization = await this.costAgent.optimizeCosts(
+        analysis.resources,
+        complianceReport,
+        request.userRequirements?.budgetConstraint,
+        request.userRequirements?.targetRegion,
         traceId,
-        { 
-          resources: analysis.resources, 
-          budgetConstraint: request.userRequirements?.budgetConstraint,
-          targetRegion: request.userRequirements?.targetRegion 
-        },
-        () => this.costAgent.optimizeCosts(
-          analysis.resources,
-          request.userRequirements?.budgetConstraint,
-          request.userRequirements?.targetRegion,
-          traceId
-        )
+        (step, pct, detail) => progress('costOptimization', 50 + Math.round(pct * 0.20), step, detail),
       );
+      metrics.costOptimization = Date.now() - t3;
 
-      wsService.emitAgentComplete(traceId, 'costOptimization', 'optimizeCosts', {
+      ws.emitAgentComplete(traceId, 'costOptimization', 'optimizeCosts', {
         estimatedMonthlyCost: costOptimization.estimatedMonthlyCost,
-        potentialSavings: costOptimization.potentialSavings,
-        optimizationCount: costOptimization.optimizations.length
+        potentialSavings:     costOptimization.potentialSavings,
+        durationMs:           metrics.costOptimization,
       });
 
-      logger.info('Cost optimization completed', {
-        traceId,
-        estimatedMonthlyCost: costOptimization.estimatedMonthlyCost,
-        potentialSavings: costOptimization.potentialSavings,
-        optimizationCount: costOptimization.optimizations.length
-      });
+      // ── Step 4: Generate Bicep + pipeline ────────────────────────────
+      ws.emitOverallProgress(traceId, 75, 'generating bicep + pipeline');
+      ws.emitAgentStart(traceId, 'generator', 'generateFiles');
 
-      // Step 4: Generate Bicep and YAML files
-      wsService.emitAgentStart(traceId, 'generator', 'generateFiles');
-      wsService.emitOverallProgress(traceId, 80, 'generating bicep files');
-      
-      const generatedFiles = await tracingService.traceAgentCall(
-        'generator',
-        'generateFiles',
-        traceId,
-        {
-          analysis,
-          complianceReport,
-          costOptimization,
-          userRequirements: request.userRequirements
-        },
-        () => this.generatorAgent.generateFiles(
-          analysis,
-          complianceReport,
-          costOptimization,
-          request.userRequirements,
-          traceId
-        )
-      );
-
-      // Step 5: Package files for download
-      wsService.emitAgentProgress(traceId, 'generator', 'packageFiles', 90, 'packaging files for download');
-      
-      const downloadUrl = await tracingService.traceAgentCall(
-        'generator',
-        'packageFiles',
-        traceId,
-        { traceId },
-        () => this.generatorAgent.packageFiles(generatedFiles, traceId, complianceReport, costOptimization)
-      );
-
-      // Complete generator agent after packaging
-      wsService.emitAgentComplete(traceId, 'generator', 'packageFiles');
-      wsService.emitOverallProgress(traceId, 100, 'processing completed');
-      
-      const processingTime = Date.now() - startTime;
-
-      const result: OrchestrationResult = {
-        traceId,
+      const t4 = Date.now();
+      const generatedFiles = await this.generatorAgent.generateFiles(
         analysis,
         complianceReport,
         costOptimization,
-        generatedFiles,
-        downloadUrl,
-        processingTime
-      };
-
-      // Mark orchestrator as completed
-      wsService.emitAgentComplete(traceId, 'orchestrator', 'orchestration', {
-        processingTime,
-        downloadUrl,
-        summary: {
-          resourceCount: analysis.resources.length,
-          compliant: complianceReport.compliant,
-          estimatedMonthlyCost: costOptimization.estimatedMonthlyCost
-        }
-      });
-
-      // Emit final completion event
-      wsService.emitProcessingUpdate({
+        request.userRequirements,
         traceId,
-        agent: 'orchestrator',
-        status: 'completed',
-        step: 'all-agents-completed',
-        progress: 100,
-        message: 'All agents completed successfully',
+        (step, pct, detail) => progress('generator', 70 + Math.round(pct * 0.20), step, detail),
+      );
+      metrics.generator = Date.now() - t4;
+
+      // ── Step 5: Package ZIP ───────────────────────────────────────────
+      ws.emitAgentProgress(traceId, 'generator', 'packageFiles', 92, 'Packaging ZIP...');
+      const downloadUrl = await this.generatorAgent.packageFiles(
+        generatedFiles, traceId, complianceReport, costOptimization,
+      );
+
+      ws.emitAgentComplete(traceId, 'generator', 'packageFiles', { downloadUrl });
+      ws.emitOverallProgress(traceId, 100, 'processing completed');
+
+      const processingTime = Date.now() - startTime;
+
+      ws.emitProcessingUpdate({
+        traceId,
+        agent:     'orchestrator',
+        status:    'completed',
+        step:      'all-agents-completed',
+        progress:  100,
+        message:   'All agents completed successfully',
         timestamp: new Date().toISOString(),
         data: {
-          processingTime,
-          downloadUrl,
+          processingTime, downloadUrl,
           summary: {
-            resourceCount: analysis.resources.length,
-            compliant: complianceReport.compliant,
-            estimatedMonthlyCost: costOptimization.estimatedMonthlyCost
-          }
-        }
-      });
-
-      logger.info('Architecture diagram processing completed successfully', {
-        traceId,
-        processingTime,
-        downloadUrl
+            resourceCount:        analysis.resources.length,
+            compliant:            complianceReport.compliant,
+            estimatedMonthlyCost: costOptimization.estimatedMonthlyCost,
+            potentialSavings:     costOptimization.potentialSavings,
+          },
+        },
       });
 
       span.setAttributes({
-        'result.processingTime': processingTime,
-        'result.resourceCount': analysis.resources.length,
-        'result.compliant': complianceReport.compliant,
-        'result.estimatedCost': costOptimization.estimatedMonthlyCost
+        'result.processingTime':   processingTime,
+        'result.resourceCount':    analysis.resources.length,
+        'result.compliant':        complianceReport.compliant,
+        'result.estimatedCost':    costOptimization.estimatedMonthlyCost,
+        'result.potentialSavings': costOptimization.potentialSavings,
+        'agent.analyzer.ms':       metrics.analyzer,
+        'agent.policy.ms':         metrics.policyCompliance,
+        'agent.cost.ms':           metrics.costOptimization,
+        'agent.generator.ms':      metrics.generator,
       });
 
       await tracingService.endTrace(span, traceId, 'orchestrator.processArchitectureDiagram', 'completed');
-      return result;
+
+      return {
+        traceId, analysis, complianceReport, costOptimization,
+        generatedFiles, downloadUrl, processingTime,
+        agentMetrics: {
+          analyzer:         { durationMs: metrics.analyzer },
+          policyCompliance: { durationMs: metrics.policyCompliance },
+          costOptimization: { durationMs: metrics.costOptimization },
+          generator:        { durationMs: metrics.generator },
+        },
+      };
 
     } catch (error) {
-      const processingTime = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      
-      logger.error('Architecture diagram processing failed', {
-        traceId,
-        error: errorMessage,
-        processingTime
-      });
-
-      // Emit error to WebSocket so UI can display it
-      wsService.emitAgentError(traceId, 'orchestrator', 'processing', errorMessage);
-
+      logger.error('OrchestratorAgent: pipeline failed', { traceId, error: errorMessage });
+      ws.emitAgentError(traceId, 'orchestrator', 'processing', errorMessage);
       await tracingService.endTrace(
-        span,
-        traceId,
-        'orchestrator.processArchitectureDiagram',
-        'failed',
-        error instanceof Error ? error : new Error('Unknown error')
+        span, traceId, 'orchestrator.processArchitectureDiagram', 'failed',
+        error instanceof Error ? error : new Error('Unknown error'),
       );
-
       throw error;
     }
   }
 
+  /**
+   * Returns live status by querying the trace store.
+   * Previously this was hardcoded — now it reads real trace data.
+   */
   async getProcessingStatus(traceId: string): Promise<any> {
     const { span } = await tracingService.startTrace('orchestrator.getProcessingStatus', traceId);
-
     try {
-      // In a real implementation, this would query the tracing system
-      // for the current status of the processing pipeline
-      logger.info('Retrieving processing status', { traceId });
+      const { traceQueryService } = await import('../services/traceQuery');
+      const trace = await traceQueryService.getTraceDetails(traceId);
 
-      const status = {
-        traceId,
-        status: 'completed', // This would be dynamic based on actual trace data
-        currentStep: 'generator',
-        completedSteps: ['analyzer', 'policyCompliance', 'costOptimization'],
-        timestamp: new Date().toISOString()
-      };
+      const status = trace
+        ? {
+            traceId,
+            status:    trace.status ?? 'unknown',
+            steps:     trace.steps  ?? [],
+            timestamp: new Date().toISOString(),
+          }
+        : {
+            traceId,
+            status:    'not-found',
+            steps:     [],
+            timestamp: new Date().toISOString(),
+          };
 
       await tracingService.endTrace(span, traceId, 'orchestrator.getProcessingStatus', 'completed');
       return status;
-
     } catch (error) {
       await tracingService.endTrace(
-        span,
-        traceId,
-        'orchestrator.getProcessingStatus',
-        'failed',
-        error instanceof Error ? error : new Error('Unknown error')
+        span, traceId, 'orchestrator.getProcessingStatus', 'failed',
+        error instanceof Error ? error : new Error('Unknown'),
       );
       throw error;
     }

@@ -1,15 +1,17 @@
 {
-  "name": "ai-superman",
-  "version": "1.0.0",
-  "description": "AI Superman - Architecture Assistant for converting diagrams to Bicep files and Azure Pipeline YAMLs",
+  "name": "azure-ai-architect",
+  "version": "2.0.0",
+  "description": "AzureAIArchitect — Agentic pipeline that converts Azure architecture diagrams into Bicep templates and Azure DevOps pipelines using real LLM-powered agents",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
+    "test:watch": "jest --watch",
     "lint": "eslint src/**/*.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "@azure/identity": "^4.0.1",
@@ -28,13 +30,15 @@
     "express": "^4.18.2",
     "jsdom": "^25.0.1",
     "multer": "^1.4.5-lts.1",
+    "openai": "^4.47.1",
     "pdf-parse": "^1.1.1",
     "sharp": "^0.33.2",
     "socket.io": "^4.8.1",
     "uuid": "^9.0.1",
     "winston": "^3.11.0",
     "ws": "^8.18.3",
-    "xml2js": "^0.6.2"
+    "xml2js": "^0.6.2",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/archiver": "^6.0.2",
@@ -50,19 +54,11 @@
     "@typescript-eslint/parser": "^6.13.1",
     "eslint": "^8.55.0",
     "jest": "^29.7.0",
+    "ts-jest": "^29.1.0",
     "ts-node": "^10.9.1",
     "typescript": "^5.3.3"
   },
-  "keywords": [
-    "ai",
-    "superman",
-    "architecture",
-    "bicep",
-    "azure",
-    "diagram",
-    "assistant",
-    "tracing"
-  ],
+  "keywords": ["azure", "ai", "agents", "bicep", "architecture", "diagram", "openai", "agentic", "devops"],
   "author": "",
   "license": "MIT"
 }
